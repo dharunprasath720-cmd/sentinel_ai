@@ -7,3 +7,7 @@ requires-python = ">=3.11"
 pythonpath = ["backend"]
 testpaths = ["tests"]
 addopts = "-q"
+filterwarnings = [
+    # third-party notice from Starlette's TestClient about httpx; not our code
+    "ignore:Using .httpx. with .starlette.testclient. is deprecated",
+]
