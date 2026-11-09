@@ -1,4 +1,4 @@
-import json
+﻿import json
 import threading
 import time
 
@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from live_fakes import FakePayPal, FakeScorer
+from live_fakes import FakePayPal, FakeScorer, record
 from sentinel.api.app import create_app
 from sentinel.cases.orm import Alert, User
 from sentinel.context import AppContext
@@ -17,7 +17,7 @@ from sentinel.security import hash_password
 SECRET = "live-api-test-secret-that-is-at-least-32-bytes"
 PW = "Passw0rd-for-live-tests"
 GOOD = {"paypal-transmission-sig": "good", "paypal-auth-algo": "SHA256withRSA",
-        "paypal-cert-url": "https://x/c", "paypal-transmission-id": "t1",
+        "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-1", "paypal-transmission-id": "t1",
         "paypal-transmission-time": "2026-11-09T10:00:00Z"}
 
 
@@ -194,3 +194,48 @@ def test_webhook_route_status_codes(env):
     with session_scope(engine) as s:
         assert s.query(Transaction).count() == 0 and s.query(Alert).count() == 0
     assert scorer.seen == []
+
+
+def test_oversized_webhook_bodies_are_rejected_before_any_paypal_call(env):
+    client, app, engine, scorer, paypal = env
+    big = b'{"id":"WH-BIG","event_type":"X","pad":"' + b"a" * 70_000 + b'"}'
+    r = post(client, big)
+    assert r.status_code == 413 and paypal.bodies == [] and scorer.seen == []
+
+
+def test_concurrent_webhook_verifications_are_capped_so_the_pool_cannot_be_exhausted():
+    engine = make_engine("sqlite:///:memory:")
+    init_db(engine)
+
+    class Blocking(FakePayPal):
+        def __init__(self):
+            super().__init__()
+            self.entered, self.release = threading.Event(), threading.Event()
+
+        def verify_webhook(self, headers, raw_body, webhook_id):
+            self.entered.set()
+            self.release.wait(10)
+            return True
+
+    pp = Blocking()
+    ctx = AppContext(business_id="A", live_scorer=FakeScorer(), paypal=pp, webhook_id="WH123", model_version="m")
+    app = create_app(engine, secret=SECRET, context=ctx, webhook_concurrency=1)
+    first = {}
+    t = threading.Thread(target=lambda: first.update(r=post(TestClient(app), capture_event("WH-A", "CAP-A"))))
+    t.start()
+    assert pp.entered.wait(5)
+    second = post(TestClient(app), capture_event("WH-B", "CAP-B"))
+    assert second.status_code == 503 and "retry-after" in second.headers  # shed immediately, PayPal retries later
+    pp.release.set()
+    t.join(10)
+    assert first["r"].status_code == 200
+
+
+def test_metrics_are_per_business(env):
+    client, app, *_ = env
+    app.state.live.process(record(1, amount=300, business="A"))
+    mine = client.get("/metrics/live", headers=auth(client, "ana")).json()
+    other = client.get("/metrics/live", headers=auth(client, "bob")).json()
+    assert mine["processed"] == 1 and mine["alerts"] == 1
+    assert other["processed"] == 0 and other["alerts"] == 0 and other["dropped"] == 0
+    assert other["simulator"] == {"running": False, "sent": 0, "errors": 0}

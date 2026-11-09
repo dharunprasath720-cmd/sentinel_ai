@@ -63,7 +63,7 @@ def transactions_frame(session: Session, business: str) -> pd.DataFrame:
         "external_id": r.external_id, "account_id": r.account_id, "merchant_id": r.merchant_id,
         "device_id": r.device_id, "instrument_id": r.instrument_id, "amount": r.amount,
         "ts": pd.to_datetime(r.ts, utc=True), "type": r.type, "status": r.status,
-        "business_id": r.business_id} for r in rows])
+        "business_id": r.business_id, "source": r.source} for r in rows])
 
 
 def build_demo(db_url: str, out_dir: Path, env_file: Path, seed: int = 42, n_accounts: int = 500,

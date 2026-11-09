@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import os
+import threading
 from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Path, Query, Request
@@ -28,7 +29,8 @@ from sentinel.context import AppContext
 from sentinel.db import session_scope
 from sentinel.live.bus import EventBus
 from sentinel.live.service import LiveService, Simulator
-from sentinel.paypal.webhook import BadEvent, InvalidSignature, VerificationUnavailable, process_webhook
+from sentinel.paypal.webhook import (MAX_BODY_BYTES, BadEvent, InvalidSignature, PayloadTooLarge,
+                                     VerificationUnavailable, process_webhook)
 from sentinel.security import (AuthError, Conflict, Forbidden, NotFound, create_token,
                                decode_token, hash_password, require_role, verify_password)
 
@@ -83,7 +85,7 @@ def _alert_dict(a: Alert) -> dict:
 
 
 def create_app(engine: Engine, secret: str | None = None,
-               context: AppContext | None = None) -> FastAPI:
+               context: AppContext | None = None, webhook_concurrency: int = 8) -> FastAPI:
     secret = secret or os.environ.get("SENTINEL_JWT_SECRET")
     if not secret or len(secret) < MIN_SECRET_LEN:
         raise RuntimeError(f"SENTINEL_JWT_SECRET must be set and at least {MIN_SECRET_LEN} characters")
@@ -122,6 +124,10 @@ def create_app(engine: Engine, secret: str | None = None,
         # temporary: PayPal retries deliveries that get a 5xx
         return JSONResponse({"detail": "signature verification temporarily unavailable"},
                             status_code=503, headers={"Retry-After": "30"})
+
+    @app.exception_handler(PayloadTooLarge)
+    async def _too_large(_: Request, exc: PayloadTooLarge):
+        return JSONResponse({"detail": str(exc)}, status_code=413)
 
     @app.exception_handler(BadEvent)
     async def _bad_event(_: Request, exc: BadEvent):
@@ -278,7 +284,9 @@ def create_app(engine: Engine, secret: str | None = None,
     @app.get("/metrics/live")
     def metrics_live(user: User = Depends(current_user)):
         need_live()
-        return {**live.metrics.snapshot(), "dropped": bus.dropped, "simulator": simulator.status()}
+        mine = user.business_id  # a business sees only its own counters
+        sim = simulator.status() if mine == context.business_id else {"running": False, "sent": 0, "errors": 0}
+        return {**live.metrics_for(mine).snapshot(), "dropped": bus.dropped_for(mine), "simulator": sim}
 
     def simulator_guard(user: User) -> None:
         need_live()
@@ -303,12 +311,27 @@ def create_app(engine: Engine, secret: str | None = None,
         simulator.stop()
         return simulator.status()
 
+    webhook_slots = threading.BoundedSemaphore(max(1, webhook_concurrency))
+
+    async def read_limited(request: Request) -> bytes:
+        """Read the body but stop as soon as it exceeds MAX_BODY_BYTES (never buffer an unbounded body)."""
+        declared = request.headers.get("content-length")
+        if declared and declared.isdigit() and int(declared) > MAX_BODY_BYTES:
+            raise PayloadTooLarge(f"body is larger than {MAX_BODY_BYTES} bytes")
+        chunks, total = [], 0
+        async for chunk in request.stream():
+            total += len(chunk)
+            if total > MAX_BODY_BYTES:
+                raise PayloadTooLarge(f"body is larger than {MAX_BODY_BYTES} bytes")
+            chunks.append(chunk)
+        return b"".join(chunks)
+
     @app.post("/paypal/webhook")
     async def paypal_webhook(request: Request):
         """Authenticated by PayPal's signature, not by a bearer token."""
         if live is None or context.paypal is None or not context.webhook_id:
             raise HTTPException(status_code=503, detail="PayPal webhook handling is not configured")
-        raw = await request.body()  # the exact bytes PayPal signed
+        raw = await read_limited(request)  # the exact bytes PayPal signed, capped in size
         headers = {k.lower(): v for k, v in request.headers.items()}
 
         def work():
@@ -324,7 +347,14 @@ def create_app(engine: Engine, secret: str | None = None,
                 live.publish(event)
             return result
 
-        result = await run_in_threadpool(work)
+        # This route is unauthenticated and each request may call PayPal: cap how many verifications
+        # run at once so a flood cannot exhaust the shared worker pool. PayPal redelivers a 503.
+        if not webhook_slots.acquire(blocking=False):
+            return JSONResponse({"detail": "busy, retry later"}, status_code=503, headers={"Retry-After": "5"})
+        try:
+            result = await run_in_threadpool(work)
+        finally:
+            webhook_slots.release()
         return {"status": result.status, "transaction": result.txn_external_id}
 
     return app

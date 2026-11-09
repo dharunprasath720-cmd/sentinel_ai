@@ -17,6 +17,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Literal, Mapping
+from urllib.parse import urlsplit
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -41,6 +42,28 @@ class BadEvent(Exception):
     """Malformed or unusable payload (HTTP 400)."""
 
 
+class PayloadTooLarge(BadEvent):
+    """Body over MAX_BODY_BYTES (HTTP 413)."""
+
+
+MAX_BODY_BYTES = 64 * 1024
+MAX_CERT_URL_LEN = 500
+
+
+def valid_cert_url(url) -> bool:
+    """The certificate URL PayPal signs with must be an https URL on paypal.com. Checked BEFORE any
+    outbound call so a forged request cannot make us spend PayPal API calls."""
+    if not isinstance(url, str) or not url or len(url) > MAX_CERT_URL_LEN:
+        return False
+    try:
+        parts = urlsplit(url)
+        host = (parts.hostname or "").lower()
+    except ValueError:
+        return False
+    return (parts.scheme == "https" and parts.username is None
+            and (host == "paypal.com" or host.endswith(".paypal.com")))
+
+
 @dataclass
 class WebhookResult:
     status: Literal["processed", "duplicate", "ignored"]
@@ -56,7 +79,10 @@ def normalise_capture_event(event: dict, business_id: str) -> dict:
         payee = res.get("payee") or {}
         return {
             "external_id": f"PP-{res['id']}",
-            "account_id": res.get("custom_id") or UNLINKED,
+            # PAYMENT.CAPTURE.COMPLETED carries no payer identity. An unlinked payment becomes its
+            # own pseudo-account: merging every unlinked payer into one account would invent
+            # velocity and history that belong to no real customer.
+            "account_id": res.get("custom_id") or f"{UNLINKED}:{res['id']}",
             "merchant_id": payee.get("merchant_id"),
             "device_id": None, "instrument_id": None,
             "amount": float(res["amount"]["value"]),
@@ -72,13 +98,19 @@ def normalise_capture_event(event: dict, business_id: str) -> dict:
 
 def process_webhook(session: Session, client: PayPalClient, headers: Mapping[str, str],
                     raw_body: bytes, webhook_id: str, business_id: str) -> WebhookResult:
+    if len(raw_body) > MAX_BODY_BYTES:
+        raise PayloadTooLarge(f"body is larger than {MAX_BODY_BYTES} bytes")
     try:  # cheap local rejection first: garbage never costs a PayPal call
         event = json.loads(raw_body)
-    except ValueError as exc:
+    except (ValueError, RecursionError) as exc:  # RecursionError: absurdly nested JSON
         raise BadEvent("body is not valid JSON") from exc
     if not (isinstance(event, dict) and isinstance(event.get("id"), str)
             and isinstance(event.get("event_type"), str)):
         raise BadEvent("body is not a PayPal event object (needs string id and event_type)")
+
+    headers = {k.lower(): v for k, v in headers.items()}
+    if not valid_cert_url(headers.get("paypal-cert-url")):
+        raise InvalidSignature("the certificate URL is not an https paypal.com URL")
 
     try:
         verified = client.verify_webhook(headers, raw_body, webhook_id)

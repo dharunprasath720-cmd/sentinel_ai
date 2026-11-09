@@ -1,4 +1,4 @@
-import asyncio
+﻿import asyncio
 import threading
 
 import pytest
@@ -120,6 +120,15 @@ def test_metrics_report_counts_and_latency_percentiles():
     eng, bus, ctx, svc = make()
     for i in range(10):
         svc.process(record(10 + i, amount=300 if i % 2 else 10, minute=i))
-    m = svc.metrics.snapshot()
+    m = svc.metrics_for("A").snapshot()
     assert (m["processed"], m["alerts"]) == (10, 5)
     assert m["p50_ms"] == m["p95_ms"] == m["max_ms"] == 2.5
+
+
+def test_metrics_are_kept_per_business():
+    eng, bus, ctx, svc = make()
+    svc.process(record(30, amount=300, business="A"))
+    svc.process(record(31, amount=300, business="B"))
+    svc.process(record(32, amount=10, business="B", minute=1))
+    assert (svc.metrics_for("A").snapshot()["processed"], svc.metrics_for("B").snapshot()["processed"]) == (1, 2)
+    assert svc.metrics_for("C").snapshot()["processed"] == 0

@@ -67,7 +67,9 @@ class PayPalClient:
 
     # ------------------------------------------------------------------ transport
     def _request(self, method: str, path: str, *, json_body=None, content: bytes | None = None,
-                 headers: Mapping[str, str] | None = None, idempotent_id: str | None = None) -> dict:
+                 headers: Mapping[str, str] | None = None, idempotent_id: str | None = None,
+                 retries: int | None = None) -> dict:
+        limit = self.max_retries if retries is None else retries
         extra = dict(headers or {})
         if idempotent_id:
             extra["PayPal-Request-Id"] = idempotent_id  # fixed per call: retries reuse it
@@ -81,7 +83,7 @@ class PayPalClient:
                              **({"Content-Type": "application/json"} if content is not None else {})})
             except httpx.TransportError as exc:
                 log.warning("paypal %s %s transport error: %s", method, path, type(exc).__name__)
-                if attempt >= self.max_retries:
+                if attempt >= limit:
                     raise PayPalError(0, "TRANSPORT_ERROR", type(exc).__name__, retryable=True) from exc
                 self._backoff(attempt)
                 attempt += 1
@@ -92,7 +94,7 @@ class PayPalClient:
                 self._token, refreshed = None, True
                 continue
             if r.status_code in RETRYABLE_STATUS:
-                if attempt >= self.max_retries:
+                if attempt >= limit:
                     raise self._error(r, retryable=True)
                 self._backoff(attempt)
                 attempt += 1
@@ -169,5 +171,7 @@ class PayPalClient:
         parts = [b'"%s":%s' % (k.encode(), json.dumps(h[k]).encode()) for k in WEBHOOK_HEADERS]
         parts.append(b'"webhook_id":' + json.dumps(webhook_id).encode())
         payload = b"{" + b",".join(parts) + b',"webhook_event":' + raw_body + b"}"
-        out = self._request("POST", "/v1/notifications/verify-webhook-signature", content=payload)
+        # no retries: this runs on a request thread of an unauthenticated route. If PayPal is slow
+        # we shed the request (503) and PayPal redelivers, rather than hold a worker through backoff.
+        out = self._request("POST", "/v1/notifications/verify-webhook-signature", content=payload, retries=0)
         return out.get("verification_status") == "SUCCESS"

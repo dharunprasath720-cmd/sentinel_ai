@@ -1,4 +1,4 @@
-"""The ten read-only investigation tools the agent may call.
+﻿"""The ten read-only investigation tools the agent may call.
 
 Safety rules enforced here, in code (not in the prompt):
   * Scope: every query is filtered by the authenticated user's business_id. The model never
@@ -12,6 +12,7 @@ Safety rules enforced here, in code (not in the prompt):
   * Evidence ids: each result lists `evidence_ids` (`txn:`, `acct:`, `cluster:`, `alert:`,
     `assessment:`) naming exactly the records it returned; reports may cite only those.
 """
+import logging
 import re
 from datetime import timezone
 
@@ -27,6 +28,7 @@ from sentinel.ingestion.orm import Transaction
 from sentinel.models.explain import explain_transaction
 from sentinel.security import NotFound
 
+log = logging.getLogger("sentinel.agent")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 MAX_TEXT = 80
 HISTORY_LIMIT = 50
@@ -115,6 +117,9 @@ class ToolBox:
             return {"error": "not_found", "message": "No such record in your business."}
         except ToolUnavailable as exc:
             return {"error": "unavailable", "message": str(exc)}
+        except Exception as exc:  # noqa: BLE001  (a tool bug must not crash the loop or leak details)
+            log.warning("tool %s failed: %s", name, type(exc).__name__)
+            return {"error": "tool_failed", "message": "The tool failed unexpectedly."}
 
     # ------------------------------------------------------------------ data helpers
     def _txn(self, external_id: str) -> Transaction:

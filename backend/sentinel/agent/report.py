@@ -1,4 +1,4 @@
-"""Investigation report model and the guards that keep an LLM-written narrative honest.
+﻿"""Investigation report model and the guards that keep an LLM-written narrative honest.
 
 The facts in a report (transaction, risk assessment) always come from the deterministic tools.
 The model only writes the narrative parts, and `validate_citations` rejects a narrative that
@@ -13,14 +13,13 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from sentinel.agent.claims import asserts_fraud, claims_action_taken
+
 Classification = Literal["suspicious", "insufficient_evidence", "likely_legitimate"]
 SECTIONS = ("model_findings", "behavioural_findings", "graph_findings", "supporting_evidence",
             "contradictory_evidence")
-# "confirmed fraud" / "is fraudulent" - but not "not confirmed fraud" / "unconfirmed fraud"
-FORBIDDEN_CLAIM = re.compile(r"(?<!not )(?<!un)confirmed fraud|\b(?:is|are|was|were) (?:clearly |definitely |certainly )?fraudulent"
-                             r"|committed fraud", re.I)
 ALLOWED_BY_LEVEL = {"LOW": {"likely_legitimate", "insufficient_evidence"},
-                    "MODERATE": {"suspicious", "insufficient_evidence", "likely_legitimate"},
+                    "MODERATE": {"suspicious", "insufficient_evidence"},  # "likely_legitimate" only for LOW
                     "HIGH": {"suspicious", "insufficient_evidence"},
                     "CRITICAL": {"suspicious", "insufficient_evidence"}}
 _UNSUPPORTED_SCHEMA_KEYS = {"minLength", "maxLength", "minItems", "maxItems", "minimum", "maximum",
@@ -98,8 +97,10 @@ def violations(part, retrieved_ids: set[str], risk_level: str | None = None) -> 
     texts = [part.summary, *part.missing_information, *part.recommended_next_steps,
              *part.confidence.limitations] + [f.claim for s in SECTIONS for f in getattr(part, s)]
     for t in texts:
-        if FORBIDDEN_CLAIM.search(t):
+        if asserts_fraud(t):
             out.append(f"claims fraud as established ('{t[:60]}'); only suspicion is known")
+        if claims_action_taken(t):
+            out.append(f"claims an action was executed ('{t[:60]}'); the system only recommends")
     if risk_level in ALLOWED_BY_LEVEL and part.classification not in ALLOWED_BY_LEVEL[risk_level]:
         out.append(f"classification '{part.classification}' contradicts the deterministic risk level {risk_level}")
     return out
@@ -110,6 +111,7 @@ def violation_kinds(problems: list[str]) -> str:
     kinds = {"which no tool returned": "evidence the tools never returned",
              "has no evidence ids": "findings without evidence",
              "claims fraud": "fraud asserted as established",
+             "claims an action": "an action asserted as executed",
              "contradicts the deterministic": "classification contradicting the risk level",
              "did not match the report schema": "output in the wrong format"}
     found = [label for key, label in kinds.items() if any(key in p for p in problems)]

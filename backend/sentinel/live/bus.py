@@ -16,7 +16,7 @@ class Subscription:
         try:
             self.queue.put_nowait(event)
         except asyncio.QueueFull:
-            self._bus._count_drop()
+            self._bus._count_drop(self.business_id)
 
     async def get(self) -> dict:
         return await self.queue.get()
@@ -31,6 +31,7 @@ class EventBus:
         self._subs: dict[str, set[Subscription]] = defaultdict(set)
         self._lock = threading.Lock()
         self.dropped = 0
+        self._dropped_by: dict[str, int] = defaultdict(int)
 
     def subscribe(self, business_id: str) -> Subscription:
         """Call from inside a running event loop (the SSE handler)."""
@@ -56,6 +57,11 @@ class EventBus:
         with self._lock:
             self._subs[sub.business_id].discard(sub)
 
-    def _count_drop(self) -> None:
+    def _count_drop(self, business_id: str) -> None:
         with self._lock:
             self.dropped += 1
+            self._dropped_by[business_id] += 1
+
+    def dropped_for(self, business_id: str) -> int:
+        with self._lock:
+            return self._dropped_by[business_id]

@@ -175,3 +175,15 @@ def test_injected_instructions_in_transaction_fields_are_neutralised(world):
     merchant = out["transaction"]["merchant_id"]
     assert len(merchant) <= 81 and "\n" not in merchant
     session.rollback(); session.close()
+
+
+def test_unexpected_tool_exceptions_become_error_results_without_details(world, monkeypatch):
+    tb, session = toolbox(world)
+
+    def boom(self):
+        raise RuntimeError("internal detail that must not leak")
+
+    monkeypatch.setattr(type(tb), "get_recent_alerts", boom)
+    out = tb.dispatch("get_recent_alerts", {})
+    assert out == {"error": "tool_failed", "message": out["message"]} and "internal" not in out["message"]
+    session.close()

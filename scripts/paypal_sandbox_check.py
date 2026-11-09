@@ -39,7 +39,9 @@ def main() -> None:
                 k, v = line.split("=", 1)
                 os.environ.setdefault(k.strip(), v.strip())
     ap = argparse.ArgumentParser()
-    ap.add_argument("--account", default="ACC_00007", help="custom_id stored on the order (becomes the fraud account id)")
+    ap.add_argument("--account", default=None,
+                    help="optional custom_id stored on the order; it becomes the fraud account id. Leave unset "
+                         "to test an unlinked payer (its own pseudo-account); do NOT reuse a synthetic account id")
     ap.add_argument("--amount", default="25.00")
     args = ap.parse_args()
     cid, secret = os.environ.get("PAYPAL_CLIENT_ID"), os.environ.get("PAYPAL_CLIENT_SECRET")

@@ -43,7 +43,13 @@ class LatencyMetrics:
 class LiveService:
     def __init__(self, db: Engine, context: AppContext, bus: EventBus):
         self.db, self.ctx, self.bus = db, context, bus
-        self.metrics = LatencyMetrics()
+        self._metrics: dict[str, LatencyMetrics] = {}
+        self._metrics_lock = threading.Lock()
+
+    def metrics_for(self, business_id: str) -> LatencyMetrics:
+        """Counters are kept per business so one tenant never sees another's volumes."""
+        with self._metrics_lock:
+            return self._metrics.setdefault(business_id, LatencyMetrics())
 
     def score_and_store(self, session: Session, record: dict) -> dict | None:
         """Score an ALREADY-INGESTED record and persist its assessment/alert. Returns the event
@@ -56,7 +62,7 @@ class LiveService:
             details={"inputs": scored.inputs, "behaviour_reasons": scored.behaviour_reasons,
                      "cluster_id": scored.cluster_id, "late": scored.late})
         alerts = services.create_alerts(session, scored.business_id, [row], min_level="HIGH")
-        self.metrics.record(scored.latency_ms, bool(alerts))
+        self.metrics_for(scored.business_id).record(scored.latency_ms, bool(alerts))
         a = scored.assessment
         return {
             "external_id": scored.external_id, "business_id": scored.business_id,

@@ -1,4 +1,4 @@
-import json
+﻿import json
 import threading
 
 import httpx
@@ -170,4 +170,36 @@ def test_normalised_record_is_valid_and_labelled_paypal_sandbox():
     assert (t.source, t.external_id, t.account_id, t.merchant_id, t.amount, t.currency) == \
         ("paypal_sandbox", "PP-CAP-9", "ACC_00007", "MERCH123", 42.5, "USD")
     assert t.device_id is None and t.geo is None and t.label is None  # demo-only fields stay empty
-    assert normalise_capture_event(event(custom_id=None), "biz1")["account_id"] == "PAYPAL_UNLINKED"
+    # an unlinked payer must not be merged with other unlinked payers: one pseudo-account per capture
+    a = normalise_capture_event(event(custom_id=None, id="CAP-1"), "biz1")["account_id"]
+    b = normalise_capture_event(event(custom_id=None, id="CAP-2"), "biz1")["account_id"]
+    assert a.startswith("PAYPAL_UNLINKED") and b.startswith("PAYPAL_UNLINKED") and a != b
+
+
+@pytest.mark.parametrize("cert_url", [
+    "http://api.sandbox.paypal.com/c",                 # not https
+    "https://evil.example.com/c",
+    "https://paypal.com.evil.com/c",                    # suffix trick
+    "https://api.sandbox.paypal.com.evil.com/c",
+    "ftp://api.sandbox.paypal.com/c",
+    "https://" + "a" * 600 + ".paypal.com/c",           # absurd length
+    "not a url",
+])
+def test_cert_url_must_be_an_https_paypal_host_and_nothing_is_sent_to_paypal_otherwise(engine, cert_url):
+    client, seen = paypal(ok())
+    with pytest.raises(InvalidSignature):
+        run(engine, client, headers={**HEADERS, "paypal-cert-url": cert_url})
+    assert seen == [] and counts(engine) == (0, 0)
+
+
+def test_deeply_nested_json_is_a_bad_event_not_a_crash(engine):
+    client, seen = paypal(ok())
+    with pytest.raises(BadEvent):
+        run(engine, client, b"[" * 200_000)
+    assert seen == []
+
+
+def test_header_names_are_case_insensitive(engine):
+    client, _ = paypal(ok())
+    upper = {k.upper(): v for k, v in HEADERS.items()}
+    assert run(engine, client, headers=upper).status == "processed"

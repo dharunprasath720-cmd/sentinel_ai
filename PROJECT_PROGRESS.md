@@ -7,7 +7,7 @@ Spec: `docs/superpowers/specs/2026-11-09-sentinel-ai-design.md` · Plans: `docs/
 
 ```
 py -3.11 -m venv .venv && .venv\Scripts\python -m pip install -r requirements.txt   # Python 3.11.4 used
-.venv\Scripts\python -m pytest                                                      # 285 tests, ~6 min
+.venv\Scripts\python -m pytest                                                      # 379 tests, ~6 min
 set PYTHONPATH=backend && .venv\Scripts\python -m sentinel.models.run --dataset synthetic
 .venv\Scripts\python scripts\serve.py                  # builds the demo on first run (~3-4 min), then serves on :8000
 ```
@@ -59,7 +59,7 @@ Reproduced and fixed, each with a test that failed first:
 
 ## Day 3 — PayPal Sandbox client + webhook, live scoring, event stream, Claude investigation agent: BUILT, live integrations NOT yet exercised
 
-**Verified by running:** `pytest` **285 passed** (6 min). Real server driven over HTTP by a smoke script: login and role checks, SSE stream, simulator, metrics, agent report, and the 503s for unconfigured integrations.
+**Verified by running:** `pytest` **379 passed** (~6 min, after the review fixes below). Real server driven over HTTP by a smoke script: login and role checks, SSE stream, simulator, metrics, agent report, and the 503s for unconfigured integrations.
 
 **What is built**
 - `paypal/`: Sandbox client (token cache, retries with one idempotency key per call, no secrets in logs); webhook verification that sends PayPal the **exact received bytes**, accepts only a literal `"SUCCESS"`, fails closed, answers 503 when PayPal is unreachable, deduplicates on `event_id` (4 concurrent deliveries → 1 row).
@@ -84,6 +84,18 @@ Reproduced and fixed, each with a test that failed first:
 - **Claude, live:** no real API call has run. The refusal-fallback parameter (`fallbacks: "default"` via `extra_body` + beta `server-side-fallback-2026-07-01`) and the structured-output request shape are **unverified**; `AnthropicLLM(use_fallbacks=False)` disables the former. Run `scripts/live_claude_check.py`.
 - **Refunds:** the client method exists (`refund_capture`) but nothing calls it and it has never run; an approved-case refund workflow is not built.
 - PayPal's Transaction Search / reporting API: not built (response details unverified).
+
+## Day 3 independent review (Opus, whole branch) — outcome
+
+Reproduced by the reviewer and fixed here, each with a test that failed first (suite now **379 passed**):
+- **PayPal and synthetic traffic shared scorer state.** One PayPal event dated "now" set the business's newest-event clock to November, after which every January-dated simulator event was treated as "late" and got no behaviour scoring (reproduced: an outlier scored 0.8, then 0.0). Scorer state is now partitioned by (business, data source); outputs still report the real business.
+- **All unlinked PayPal payers merged into one account** (12 distinct payers in 2 minutes looked like one customer with velocity 1.0). An unlinked payment is now its own pseudo-account, `PAYPAL_UNLINKED:<capture id>`.
+- **The unauthenticated webhook could be used to flood PayPal and stall the API.** Now: the certificate URL must be an https `paypal.com` host (checked before any outbound call), verification is never retried, a 64 KB body cap (413), at most 8 verifications in flight (excess get 503 + Retry-After), and absurdly nested JSON is a 400 instead of a 500.
+- **The fraud-claim filter was easy to bypass** ("definitely a fraud", "Fraud confirmed.", "fraudster", line breaks) and nothing blocked "the account has been blocked". Replaced with sentence-level detectors (`agent/claims.py`, 48 cases) applied to every narrative field **and to chat replies, which are now withheld** when they assert fraud or an executed action. MODERATE-risk transactions can no longer be classified `likely_legitimate`. A test also checks the deterministic report never trips its own filters.
+- **`/metrics/live` leaked other businesses' counts.** Counters and drop counts are now per business.
+- Also fixed: an unexpected exception inside a tool now becomes an error result instead of a chat failure.
+
+Deferred (decided, not forgotten): two simultaneous simulator starts can run two replay threads; scorer state changes before the database commit (a failed commit leaves behaviour having learnt a rolled-back row); `behaviour_profile` and a few reads are only partly lock-protected; the SSE stream does not re-check auth after it opens and authenticates with synchronous database I/O on the event loop; `get_related_accounts` and the model-explanation query load more rows than needed; `LiveScorer` memory grows without bound (`_rows`, `_seen`, indices); `live_claude_check.py` and one test validate a report against its own evidence ids (cannot fail); **demo credentials (`.env.demo`) are written into the OneDrive-synced folder by default**; no per-IP rate limit on the webhook, and none on LLM-backed endpoints.
 
 ## Known limitations — read before trusting or demoing
 1. **21% of fraud is missed** (33 of 154): takeover bursts that resemble legitimate bursts, and the first ring transactions before the shared-device pattern exists (point-in-time scoring cannot know it yet).

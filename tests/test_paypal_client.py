@@ -1,4 +1,4 @@
-import base64
+﻿import base64
 import json
 import logging
 
@@ -205,3 +205,11 @@ def test_settings_from_env_names_missing_variables_but_not_values(monkeypatch):
     monkeypatch.setenv("PAYPAL_WEBHOOK_ID", "WH1")
     s = PayPalSettings.from_env()
     assert (s.client_id, s.webhook_id) == ("cid", "WH1") and SECRET not in repr(s)
+
+
+def test_webhook_verification_is_never_retried_so_a_slow_paypal_cannot_hold_a_worker():
+    f = Fake({"/v1/notifications/verify-webhook-signature": httpx.Response(503, json={"name": "SERVICE_UNAVAILABLE"})})
+    with pytest.raises(PayPalError) as e:
+        f.client(max_retries=3).verify_webhook(HEADERS, RAW, "WH123")
+    assert e.value.retryable and len(f.calls("/v1/notifications/verify-webhook-signature")) == 1
+    assert f.sleeps == []

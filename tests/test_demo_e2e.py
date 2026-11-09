@@ -1,4 +1,4 @@
-"""End-to-end on the REAL scorer: build a demo world, replay a window containing a fraud ring through
+﻿"""End-to-end on the REAL scorer: build a demo world, replay a window containing a fraud ring through
 the live service, and investigate an alert. Prints the measured numbers for the Day 3 gate."""
 import numpy as np
 import pytest
@@ -93,7 +93,7 @@ def test_every_event_was_persisted_and_alerts_match_high_risk(demo, streamed):
             assert row.risk_level == e["risk_level"] and row.details["inputs"]
             has_alert = s.query(Alert).filter_by(business_id="demo_biz", txn_external_id=e["external_id"]).count() == 1
             assert has_alert == (e["risk_level"] in HIGH) == e["alert"]
-    assert svc.metrics.snapshot()["processed"] == len(events)
+    assert svc.metrics_for("demo_biz").snapshot()["processed"] == len(events)
 
 
 def test_an_alert_from_the_stream_gets_a_grounded_report(demo, streamed):

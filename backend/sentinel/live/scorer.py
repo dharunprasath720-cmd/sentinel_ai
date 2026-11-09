@@ -69,13 +69,23 @@ class LiveScorer:
 
     # ------------------------------------------------------------------ setup
     @staticmethod
-    def _row(txn: dict) -> dict:
+    def _partition(business_id: str, source: str) -> str:
+        """Scorer state is partitioned by (business, data source): synthetic, PaySim and PayPal
+        Sandbox rows are never blended - not into features, baselines, clusters or the 'newest event'
+        clock (one PayPal event dated today must not make all earlier-dated traffic 'late')."""
+        return f"{business_id}|{source}"
+
+    @classmethod
+    def _row(cls, txn: dict) -> dict:
+        biz = _none(txn.get("business_id")) or "default"
+        source = _none(txn.get("source")) or "unknown"
         return {"external_id": txn["external_id"], "account_id": txn["account_id"],
                 "merchant_id": _none(txn.get("merchant_id")), "device_id": _none(txn.get("device_id")),
                 "instrument_id": _none(txn.get("instrument_id")), "amount": float(txn["amount"]),
                 "ts": pd.to_datetime(txn["ts"], utc=True), "type": txn.get("type", "PAYMENT"),
                 "status": txn.get("status", "completed"),
-                "business_id": _none(txn.get("business_id")) or "default"}
+                "business_id": cls._partition(biz, source),  # internal partition key
+                "_biz": biz}                                  # the real business, for outputs
 
     def _store(self, row: dict) -> None:
         pos, biz = len(self._rows), row["business_id"]
@@ -93,7 +103,9 @@ class LiveScorer:
         h = history.reset_index(drop=True)
         if "business_id" not in h.columns:
             h["business_id"] = "default"
-        self._beh.replay(h)  # persistent baselines from history
+        source = h["source"] if "source" in h.columns else pd.Series("unknown", index=h.index)
+        partition = h["business_id"].astype(str) + "|" + source.fillna("unknown").astype(str)
+        self._beh.replay(h.assign(business_id=partition))  # persistent baselines from history
         bad = (levels.isin(HIGH_PLUS).to_numpy() if levels is not None else np.zeros(len(h), bool))
         order = np.lexsort((h["external_id"].to_numpy(), pd.to_datetime(h["ts"], utc=True).to_numpy()))
         recs = h.to_dict("records")
@@ -108,8 +120,9 @@ class LiveScorer:
                     counter[key][1] += int(bad[i])
 
     # ------------------------------------------------------------------ queries
-    def behaviour_profile(self, account_id: str, business_id: str) -> dict:
-        return self._beh.profile(account_id, business_id)
+    def behaviour_profile(self, account_id: str, business_id: str, source: str = "synthetic") -> dict:
+        with self._lock:
+            return self._beh.profile(account_id, self._partition(business_id, source))
 
     # ------------------------------------------------------------------ scoring
     def _slice(self, row: dict) -> pd.DataFrame:
@@ -177,7 +190,7 @@ class LiveScorer:
             self._store(row)
             self.n_processed += 1
             event = ScoredEvent(
-                external_id=row["external_id"], business_id=biz, assessment=assessment,
+                external_id=row["external_id"], business_id=row["_biz"], assessment=assessment,
                 inputs={**inputs, "cluster_flagged": flagged}, behaviour_reasons=list(ind.reasons),
                 cluster_id=cluster_id, late=late, latency_ms=(time.perf_counter() - t0) * 1000.0,
                 features=feats.iloc[0])

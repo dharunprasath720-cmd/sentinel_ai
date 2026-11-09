@@ -1,4 +1,4 @@
-"""The investigation agent: deterministic evidence gathering, model-written narrative, hard guards.
+﻿"""The investigation agent: deterministic evidence gathering, model-written narrative, hard guards.
 
 investigate(): the facts come from the tools (nine-step workflow inside
 `generate_investigation_report`: transaction, history, risk, behaviour, related entities,
@@ -15,6 +15,7 @@ import re
 
 from pydantic import ValidationError
 
+from sentinel.agent.claims import asserts_fraud, claims_action_taken
 from sentinel.agent.llm import LLM
 from sentinel.agent.report import (InvestigationReport, NarrativePart, narrative_json_schema,
                                    violation_kinds, violations)
@@ -41,6 +42,10 @@ Rules you must follow:
 CHAT_SYSTEM_PROMPT = SYSTEM_PROMPT.replace(
     "4. Cite evidence ids (for example txn:SYN0001) for every finding, and only ids that appear in the\n   evidence.",
     "4. Use the tools to look things up, and cite evidence ids (for example txn:SYN0001) in square\n   brackets for every claim, only ids that tools returned.")
+
+
+WITHHELD_TEXT = ("The assistant's reply was withheld because it asserted something this system cannot know. "
+                 "Ask again, or open the cited evidence directly.")
 
 
 class AgentUnavailable(Exception):
@@ -141,6 +146,13 @@ class InvestigationAgent:
     @staticmethod
     def _chat_result(status: str, text: str, calls: list, retrieved: set) -> dict:
         cited = list(dict.fromkeys(c.rstrip(".") for c in CITATION.findall(text)))
-        return {"status": status, "text": text, "tool_calls": calls,
+        reasons = []
+        if asserts_fraud(text):
+            reasons.append("asserted fraud as established")
+        if claims_action_taken(text):
+            reasons.append("claimed an action was executed")
+        if reasons:  # nothing the system cannot know, and no "done" claims, reach the analyst
+            status, text = "withheld", WITHHELD_TEXT
+        return {"status": status, "text": text, "withheld_reasons": reasons, "tool_calls": calls,
                 "verified_citations": [c for c in cited if c in retrieved],
                 "unverified_citations": [c for c in cited if c not in retrieved]}

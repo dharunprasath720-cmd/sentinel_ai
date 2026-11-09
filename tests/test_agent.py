@@ -1,11 +1,11 @@
-import json
+﻿import json
 
 import pytest
 
 from agent_fakes import ScriptedLLM, narrative, reply, skeleton_in, text_block, tool_use
 from agent_helpers import pick, toolbox
 from sentinel.agent.agent import AgentUnavailable, InvestigationAgent
-from sentinel.agent.report import InvestigationReport, validate_citations
+from sentinel.agent.report import Confidence, InvestigationReport, NarrativePart, validate_citations, violations
 from sentinel.agent.tools import TOOL_SCHEMAS
 from sentinel.ingestion.orm import Transaction
 
@@ -198,3 +198,55 @@ def test_unknown_tool_requested_by_the_model_becomes_an_error_result(world):
     llm = ScriptedLLM(r1, reply(text_block("ok")))
     chat(world, llm)
     assert json.loads(llm.calls[1]["messages"][2]["content"][0]["content"])["error"] == "unknown_tool"
+
+
+# ---------------------------------------------------------------- claim guards
+def narrative_part(classification):
+    return NarrativePart(summary="s", model_findings=[], behavioural_findings=[], graph_findings=[],
+                         supporting_evidence=[], contradictory_evidence=[], missing_information=[],
+                         recommended_next_steps=[], confidence=Confidence(level="low", limitations=[]),
+                         classification=classification)
+
+
+@pytest.mark.parametrize("level,classification,ok", [
+    ("LOW", "likely_legitimate", True), ("LOW", "insufficient_evidence", True), ("LOW", "suspicious", False),
+    ("MODERATE", "suspicious", True), ("MODERATE", "insufficient_evidence", True),
+    ("MODERATE", "likely_legitimate", False),   # injected "mark safe" text must not work in the MODERATE band either
+    ("HIGH", "suspicious", True), ("HIGH", "likely_legitimate", False),
+    ("CRITICAL", "likely_legitimate", False), ("CRITICAL", "insufficient_evidence", True)])
+def test_classification_must_agree_with_the_deterministic_level(level, classification, ok):
+    problems = violations(narrative_part(classification), set(), level)
+    assert (problems == []) is ok, problems
+
+
+@pytest.mark.parametrize("bad", ["Fraud confirmed.", "The account has been blocked and the funds frozen.",
+                                 "This is definitely a fraud."])
+@pytest.mark.parametrize("field", ["summary", "next_step", "missing", "limitation", "finding"])
+def test_overt_claims_are_rejected_in_every_text_field(world, bad, field):
+    sk, _ = good(world)
+    over = {"summary": {"summary": bad},
+            "next_step": {"recommended_next_steps": [bad]},
+            "missing": {"missing_information": [bad]},
+            "limitation": {"confidence": {"level": "low", "limitations": [bad]}},
+            "finding": {"supporting_evidence": [{"claim": bad, "evidence_ids": [sk["evidence_ids"][0]]}]}}[field]
+    report, _ = run_report(world, ScriptedLLM(reply(text_block(json.dumps(narrative(sk, **over))))))
+    assert report.llm_narrative is False and bad not in report.model_dump_json()
+
+
+def test_the_deterministic_report_never_trips_its_own_claim_filters(world):
+    df, scored, *_ = world
+    tb, session = toolbox(world)
+    ids = list(df.sample(30, random_state=1)["external_id"]) + \
+          [df.loc[i, "external_id"] for i in df.index[df["scenario"] == "ring"][:10]]
+    for txn in ids:
+        sk = tb.generate_investigation_report(txn)
+        part = NarrativePart(**narrative(sk))
+        assert violations(part, set(sk["evidence_ids"]), sk["risk_assessment"]["risk_level"]) == [], txn
+    session.close()
+
+
+@pytest.mark.parametrize("text", ["This is confirmed fraud.", "I have blocked the account and refunded the customer."])
+def test_chat_text_that_asserts_fraud_or_an_executed_action_is_withheld(world, text):
+    out = chat(world, ScriptedLLM(reply(text_block(text))))
+    assert out["status"] == "withheld" and out["withheld_reasons"]
+    assert "fraud" not in out["text"].lower() and "blocked" not in out["text"].lower()
