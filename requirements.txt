@@ -1,0 +1,10 @@
+﻿pandas
+numpy
+scikit-learn
+lightgbm
+shap
+sqlalchemy>=2
+pydantic>=2
+pydantic-settings
+joblib
+pytest
