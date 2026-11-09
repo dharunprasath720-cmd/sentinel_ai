@@ -8,3 +8,10 @@ pydantic>=2
 pydantic-settings
 joblib
 pytest
+networkx
+pyyaml
+argon2-cffi
+pyjwt
+fastapi
+httpx
+uvicorn

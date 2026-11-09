@@ -71,6 +71,35 @@ def test_default_config_splits_have_enough_fraud_for_calibration(df):
         assert part["label"].sum() >= 25
 
 
+def test_fraud_not_concentrated_at_night(df):
+    fraud = df[df["label"] == 1]
+    assert fraud["ts"].dt.hour.between(2, 4).mean() < 0.30
+
+
+def test_ring_merchants_are_shared_with_legit_traffic(df):
+    normal = df[df["scenario"] == "normal"]
+    for m in df[df["scenario"] == "ring"]["merchant_id"].unique():
+        assert normal[normal["merchant_id"] == m]["account_id"].nunique() >= 10
+
+
+def test_legit_night_activity_exists(df):
+    normal = df[df["scenario"] == "normal"]
+    assert normal["ts"].dt.hour.between(1, 4).mean() >= 0.02
+
+
+def test_fraud_amounts_overlap_normal(df):
+    typical = df[df["scenario"] == "normal"].groupby("account_id")["amount"].median()
+    fraud = df[df["label"] == 1]
+    ratio = fraud["amount"] / fraud["account_id"].map(typical)
+    assert ratio.median() <= 3
+
+
+def test_lightgbm_not_trivial(df):
+    from sentinel.models.train import train
+    pr_auc = train(df, seed=42).metrics["lightgbm"]["pr_auc"]
+    assert 0.15 < pr_auc < 0.95
+
+
 def test_shared_device_not_always_fraud(df):
     per_dev = df.dropna(subset=["device_id"]).groupby("device_id").agg(
         n_acct=("account_id", "nunique"), fraud=("label", "max"))

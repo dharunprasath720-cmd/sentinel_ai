@@ -28,15 +28,17 @@ def generate(seed: int = 42, n_accounts: int = 500, days: int = 30) -> pd.DataFr
     n_rings = max(3, n_accounts // 100)
     n_fb = max(6, n_accounts // 20)  # takeover-style fraud bursts
     n_pairs = max(2, n_accounts // 25)
-    n_b = max(2, n_accounts // 100)  # legitimate bursts
+    n_b = max(4, n_accounts // 40)  # legitimate bursts
     n_lu = max(5, n_accounts // 25)
 
     mu = rng.normal(3.5, 0.6, n_accounts)
     sigma = rng.uniform(0.35, 0.7, n_accounts)
     rate = rng.uniform(0.4, 1.6, n_accounts)
     peak = rng.integers(8, 21, n_accounts)
+    peak = np.where(rng.random(n_accounts) < 0.10, rng.integers(1, 5, n_accounts), peak)  # night shift
     home = rng.integers(0, 12, n_accounts)
     favs = [rng.choice(n_merch, size=5, replace=False) for _ in range(n_accounts)]
+    popular = np.argsort(-np.bincount(np.concatenate(favs), minlength=n_merch), kind="stable")[:10]
     devices = [_h(seed, "dev", i) for i in range(n_accounts)]
     instruments = [_h(seed, "ins", i) for i in range(n_accounts)]
 
@@ -86,25 +88,32 @@ def generate(seed: int = 42, n_accounts: int = 500, days: int = 30) -> pd.DataFr
     legit_burst = rng.choice(pool, size=n_b, replace=False)
     for i in legit_burst:
         day, base = rng.integers(0, days), rng.uniform(0, 50)
+        # half of the legitimate bursts go to a merchant the account has never used
+        merch = favs[i][0] if rng.random() < 0.5 else rng.choice(
+            [m for m in range(n_merch) if m not in favs[i]])
         for k in range(rng.integers(5, 9)):
             add(i, stamp(day, peak[i], base + rng.uniform(0, 10)), np.exp(mu[i]),
-                favs[i][0], devices[i], "PAYMENT", "completed", 0, "burst")
+                merch, devices[i], "PAYMENT", "completed", 0, "burst")
     for k_ev, i in enumerate(burst_fraud):
         day, base = event_days[n_rings + k_ev], rng.uniform(0, 40)
         new_merch = rng.choice([m for m in range(n_merch) if m not in favs[i]])
+        # half of the takeovers happen at the account's own usual hours, amounts 1.3-3x typical
+        hour = peak[i] if rng.random() < 0.65 else rng.integers(2, 5)
         for k in range(7):
-            add(i, stamp(day, rng.integers(2, 5), base + rng.uniform(0, 8)),
-                np.exp(mu[i]) * rng.uniform(4, 8), new_merch, devices[i],
+            add(i, stamp(day, hour, base + rng.uniform(0, 8)),
+                np.exp(mu[i]) * rng.uniform(1.3, 3), new_merch, devices[i],
                 "PAYMENT", "completed", 1, "burst")
 
     # --- coordinated rings
     for r, members in enumerate(ring_accts):
-        dev, merchant = _h(seed, "ringdev", r), n_merch + r
-        day, hour = event_days[r], rng.integers(0, 24)
+        dev, merchant = _h(seed, "ringdev", r), int(popular[r % len(popular)])
+        day, hour = event_days[r], rng.integers(8, 22)  # rings blend into daytime traffic
         for i in members:
             for k in range(rng.integers(5, 7)):
-                add(i, stamp(day, hour, rng.uniform(0, 100)), rng.uniform(150, 400),
-                    merchant, dev, "PAYMENT", "completed", 1, "ring")
+                # most ring payments use the shared device; some come from the member's own
+                device = dev if rng.random() < 0.8 else devices[i]
+                add(i, stamp(day, hour, rng.uniform(0, 100)), np.exp(mu[i]) * rng.uniform(1.3, 3),
+                    merchant, device, "PAYMENT", "completed", 1, "ring")
 
     # --- legitimate but unusual large purchases
     eligible = [i for i in range(n_accounts) if len(normal_amounts[i]) >= 5]

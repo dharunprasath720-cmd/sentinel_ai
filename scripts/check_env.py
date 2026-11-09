@@ -3,7 +3,8 @@ import importlib
 import sys
 
 PACKAGES = ["pandas", "numpy", "sklearn", "lightgbm", "shap", "sqlalchemy",
-            "pydantic", "pydantic_settings", "joblib", "pytest"]
+            "pydantic", "pydantic_settings", "joblib", "pytest", "networkx", "yaml",
+            "argon2", "jwt", "fastapi", "httpx", "uvicorn"]
 
 print("python", sys.version.split()[0])
 failed = []
