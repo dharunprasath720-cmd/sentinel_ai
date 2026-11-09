@@ -105,8 +105,11 @@ class Normaliser:
             raise ValueError("cannot fit a Normaliser on no values")
         return cls(v)
 
-    def transform(self, x: float) -> float:
-        return float(np.searchsorted(self._v, x, side="right") / len(self._v))
+    def transform(self, x: float, strict: bool = False) -> float:
+        """Share of training values <= x, or strictly < x when `strict` (use strict for
+        tie-heavy counts, where 0 is typical and must map to 0, not to ~0.9)."""
+        side = "left" if strict else "right"
+        return float(np.searchsorted(self._v, x, side=side) / len(self._v))
 
 
 class RiskEngine:

@@ -121,6 +121,14 @@ def test_normaliser_percentile_and_bounds():
         Normaliser.fit([])
 
 
+def test_normaliser_strict_mode_does_not_inflate_common_values():
+    # 90% of training rows have value 0 (typical): "<=" would map 0 to 0.9, strict maps it to 0
+    n = Normaliser.fit([0] * 90 + [1] * 5 + [4] * 5)
+    assert n.transform(0) == 0.9
+    assert n.transform(0, strict=True) == 0.0
+    assert n.transform(4, strict=True) == 0.95
+
+
 def test_calibrate_thresholds_follow_review_budget():
     scores = np.random.default_rng(0).random(2000)
     t = calibrate_thresholds(scores, review_budget_frac=0.05)
