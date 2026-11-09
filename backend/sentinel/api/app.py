@@ -11,14 +11,16 @@ import json
 import os
 from typing import Literal
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Path, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import HTTPBearer
 from starlette.concurrency import run_in_threadpool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
+from sentinel.agent.agent import InvestigationAgent
+from sentinel.agent.tools import ToolBox
 from sentinel.cases import services
 from sentinel.cases.orm import Alert, Case, CaseAlert, CaseNote, RiskAssessmentRow, User
 from sentinel.context import AppContext
@@ -53,6 +55,21 @@ class ActionIn(BaseModel):
 
 class ResolveIn(BaseModel):
     outcome: Literal["suspicious", "cleared"]
+
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]  # clients can never inject a system turn
+    content: str = Field(min_length=1, max_length=8000)
+
+
+class ChatIn(BaseModel):
+    messages: list[ChatMessage] = Field(min_length=1, max_length=40)
+
+    @model_validator(mode="after")
+    def _ends_with_user(self):
+        if self.messages[-1].role != "user":
+            raise ValueError("the last message must be from the user")
+        return self
 
 
 class SimulateIn(BaseModel):
@@ -195,6 +212,26 @@ def create_app(engine: Engine, secret: str | None = None,
         return [{"id": e.id, "ts": e.ts.isoformat(), "actor": e.actor, "action": e.action,
                  "target": e.target, "before": e.before, "after": e.after}
                 for e in services.list_audit(session, user)]
+
+    # ------------------------------------------------------------------ investigation agent
+    def agent_for(session: Session, user: User) -> InvestigationAgent:
+        require_role(user.role, {"analyst", "admin"})
+        ctx = context or AppContext()
+        return InvestigationAgent(ctx.llm, ToolBox(session, ctx, user))
+
+    @app.post("/agent/report/{transaction_id}")
+    def agent_report(transaction_id: str = Path(min_length=1, max_length=200),
+                     session: Session = Depends(get_session), user: User = Depends(current_user)):
+        """Grounded investigation report. Without a configured language model this is the
+        deterministic, evidence-cited report (llm_narrative=false)."""
+        return agent_for(session, user).investigate(transaction_id).model_dump()
+
+    @app.post("/agent/chat")
+    def agent_chat(body: ChatIn, session: Session = Depends(get_session), user: User = Depends(current_user)):
+        agent = agent_for(session, user)
+        if agent.llm is None:
+            raise HTTPException(status_code=503, detail="no language model is configured for chat")
+        return agent.chat([m.model_dump() for m in body.messages])
 
     # ------------------------------------------------------------------ live scoring
     def authenticate(creds) -> tuple[str, str]:
