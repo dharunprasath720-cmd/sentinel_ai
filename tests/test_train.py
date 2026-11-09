@@ -35,13 +35,13 @@ def test_train_runs_and_reports_all_models(bundle):
 
 def test_calibrator_fit_only_on_val(df, monkeypatch):
     calls = []
-    real = train_mod.fit_calibrator
+    real = train_mod.select_calibrator
 
-    def spy(val_scores, y_val):
+    def spy(val_scores, y_val, *args, **kwargs):
         calls.append(len(val_scores))
-        return real(val_scores, y_val)
+        return real(val_scores, y_val, *args, **kwargs)
 
-    monkeypatch.setattr(train_mod, "fit_calibrator", spy)
+    monkeypatch.setattr(train_mod, "select_calibrator", spy)
     train(df, seed=42)
     n_val = len(chronological_split(df)[1])
     assert calls == [n_val, n_val]  # logreg + lightgbm, validation slice only
@@ -65,6 +65,13 @@ def test_save_load_roundtrip_predicts_identically(bundle, df, tmp_path):
 def test_lgbm_beats_random_pr_auc(bundle):
     base_rate = bundle.split_info["test"]["positive_rate"]
     assert bundle.metrics["lightgbm"]["pr_auc"] > base_rate
+
+
+def test_bundle_records_calibrator_choice(bundle):
+    assert set(bundle.calibrator_names) == {"logreg", "lightgbm"}
+    assert set(bundle.calibrator_names.values()) <= {"raw", "platt", "isotonic"}
+    for m in (bundle.metrics["logreg"], bundle.metrics["lightgbm"]):
+        assert sum(b["n"] for b in m["reliability"]) == bundle.split_info["test"]["n"]
 
 
 def test_validation_without_positives_raises_clear_error(df):
@@ -91,6 +98,7 @@ def test_cli_writes_report(tmp_path):
     report = (run_dir / "report.md").read_text()
     assert "lightgbm" in report and "accuracy" not in report.lower()
     assert "flag rate" in report.lower()  # realised rate shown next to the stated budget
+    assert "Reliability" in report
 
 
 def test_cli_paysim_missing_file_is_clean_error(tmp_path):

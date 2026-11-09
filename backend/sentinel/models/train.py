@@ -22,7 +22,8 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 from sentinel.features.engine import FEATURE_COLUMNS, build_features
-from sentinel.models.evaluate import choose_threshold, evaluate_scores, fit_calibrator
+from sentinel.models.evaluate import (choose_threshold, evaluate_scores, reliability_curve,
+                                      select_calibrator)
 from sentinel.models.split import chronological_split
 
 
@@ -38,6 +39,7 @@ class TrainedBundle:
     thresholds: dict
     metrics: dict
     split_info: dict
+    calibrator_names: dict
 
     def _iso(self, X: pd.DataFrame) -> np.ndarray:
         raw = -self.iforest.score_samples(X)
@@ -111,6 +113,7 @@ def train(df: pd.DataFrame, seed: int = 42, review_budget_frac: float = 0.01,
         iso_sorted=iso_sorted, calibrators={}, thresholds={}, metrics={},
         split_info={"train": _split_summary(tr), "val": _split_summary(va),
                     "test": _split_summary(te)},
+        calibrator_names={},
     )
 
     scored = {
@@ -125,10 +128,13 @@ def train(df: pd.DataFrame, seed: int = 42, review_budget_frac: float = 0.01,
         m = evaluate_scores(yte, test_s, thr)
         m["latency_ms"] = _latency_ms(infer, Xte)
         if name != "iforest":
-            cal = fit_calibrator(val_s, yva)
+            cal_name, cal = select_calibrator(val_s, yva, seed)
             bundle.calibrators[name] = cal
+            bundle.calibrator_names[name] = cal_name
+            m["calibrator"] = cal_name
             m["brier_raw"] = float(brier_score_loss(yte, test_s))
             m["brier_calibrated"] = float(brier_score_loss(yte, cal.predict(test_s)))
+            m["reliability"] = reliability_curve(yte, cal.predict(test_s))
         bundle.thresholds[name] = thr
         bundle.metrics[name] = m
     return bundle

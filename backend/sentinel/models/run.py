@@ -39,7 +39,16 @@ def _report(bundle: TrainedBundle, meta: dict) -> str:
     L += ["", "## Calibration (Brier score on test, lower is better)", ""]
     for name, m in bundle.metrics.items():
         if "brier_raw" in m:
-            L.append(f"- **{name}**: raw {m['brier_raw']:.4f} -> calibrated {m['brier_calibrated']:.4f}")
+            L.append(f"- **{name}** ({m['calibrator']} chosen on validation): "
+                     f"raw {m['brier_raw']:.4f} -> calibrated {m['brier_calibrated']:.4f}")
+    L += ["", "## Reliability (test slice, calibrated probabilities)", ""]
+    for name, m in bundle.metrics.items():
+        if "reliability" in m:
+            L += [f"**{name}**", "", "| bin | rows | mean predicted | observed fraud rate |", "|---|---|---|---|"]
+            for b in m["reliability"]:
+                L.append(f"| {b['bin_low']:.1f}-{b['bin_high']:.1f} | {b['n']} | "
+                         f"{b['mean_predicted']:.3f} | {b['observed_rate']:.3f} |")
+            L.append("")
     L += ["", "## Limitations", "",
           "- Metrics come from one time-ordered split of the stated dataset; no cross-dataset claim.",
           "- Isolation Forest scores are unsupervised anomaly ranks, not probabilities.",
