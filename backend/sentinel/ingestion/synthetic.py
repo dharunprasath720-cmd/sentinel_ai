@@ -25,9 +25,10 @@ def _h(seed: int, kind: str, k: int) -> str:
 def generate(seed: int = 42, n_accounts: int = 500, days: int = 30) -> pd.DataFrame:
     rng = np.random.default_rng(seed)
     n_merch = max(40, n_accounts // 6)
-    n_rings = max(1, n_accounts // 250)
+    n_rings = max(3, n_accounts // 100)
+    n_fb = max(6, n_accounts // 20)  # takeover-style fraud bursts
     n_pairs = max(2, n_accounts // 25)
-    n_b = max(2, n_accounts // 100)
+    n_b = max(2, n_accounts // 100)  # legitimate bursts
     n_lu = max(5, n_accounts // 25)
 
     mu = rng.normal(3.5, 0.6, n_accounts)
@@ -43,8 +44,13 @@ def generate(seed: int = 42, n_accounts: int = 500, days: int = 30) -> pd.DataFr
     for p in range(n_pairs):  # legitimate shared devices (families)
         devices[perm[2 * p + 1]] = devices[perm[2 * p]]
     pool = list(perm[2 * n_pairs:])
-    ring_accts = [pool[r * 6:(r + 1) * 6] for r in range(n_rings)]
-    burst_fraud = pool[n_rings * 6:n_rings * 6 + n_b]
+    ring_accts = [pool[r * 5:(r + 1) * 5] for r in range(n_rings)]
+    burst_fraud = pool[n_rings * 5:n_rings * 5 + n_fb]
+    # Fraud arrives continuously: spread fraud events across the horizon (one per stratum,
+    # shuffled) so every chronological split contains fraud.
+    n_events = n_rings + n_fb
+    strata = 3 + (np.arange(n_events) + rng.uniform(0.1, 0.9, n_events)) * (days - 3) / n_events
+    event_days = rng.permutation(strata.astype(int))
 
     rows: list[dict] = []
     normal_amounts: dict[int, list[float]] = {i: [] for i in range(n_accounts)}
@@ -83,10 +89,10 @@ def generate(seed: int = 42, n_accounts: int = 500, days: int = 30) -> pd.DataFr
         for k in range(rng.integers(5, 9)):
             add(i, stamp(day, peak[i], base + rng.uniform(0, 10)), np.exp(mu[i]),
                 favs[i][0], devices[i], "PAYMENT", "completed", 0, "burst")
-    for i in burst_fraud:
-        day, base = rng.integers(0, days), rng.uniform(0, 40)
+    for k_ev, i in enumerate(burst_fraud):
+        day, base = event_days[n_rings + k_ev], rng.uniform(0, 40)
         new_merch = rng.choice([m for m in range(n_merch) if m not in favs[i]])
-        for k in range(6):
+        for k in range(7):
             add(i, stamp(day, rng.integers(2, 5), base + rng.uniform(0, 8)),
                 np.exp(mu[i]) * rng.uniform(4, 8), new_merch, devices[i],
                 "PAYMENT", "completed", 1, "burst")
@@ -94,9 +100,9 @@ def generate(seed: int = 42, n_accounts: int = 500, days: int = 30) -> pd.DataFr
     # --- coordinated rings
     for r, members in enumerate(ring_accts):
         dev, merchant = _h(seed, "ringdev", r), n_merch + r
-        day, hour = rng.integers(3, days), rng.integers(0, 24)
+        day, hour = event_days[r], rng.integers(0, 24)
         for i in members:
-            for k in range(rng.integers(10, 13)):
+            for k in range(rng.integers(5, 7)):
                 add(i, stamp(day, hour, rng.uniform(0, 100)), rng.uniform(150, 400),
                     merchant, dev, "PAYMENT", "completed", 1, "ring")
 

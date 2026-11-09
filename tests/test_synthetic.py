@@ -57,6 +57,20 @@ def test_not_every_unusual_is_fraud(df):
     assert set(df[df["scenario"] == "burst"]["label"]) == {0, 1}
 
 
+@pytest.mark.parametrize("seed", [0, 1, 2, 3, 4])
+def test_every_chronological_split_has_fraud(seed):
+    from sentinel.models.split import chronological_split
+    small = generate(seed=seed, n_accounts=150, days=20)
+    for part in chronological_split(small):
+        assert part["label"].sum() >= 5
+
+
+def test_default_config_splits_have_enough_fraud_for_calibration(df):
+    from sentinel.models.split import chronological_split
+    for part in chronological_split(df):
+        assert part["label"].sum() >= 25
+
+
 def test_shared_device_not_always_fraud(df):
     per_dev = df.dropna(subset=["device_id"]).groupby("device_id").agg(
         n_acct=("account_id", "nunique"), fraud=("label", "max"))
