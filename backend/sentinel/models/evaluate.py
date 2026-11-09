@@ -35,7 +35,8 @@ def evaluate_scores(y_true, scores, threshold: float) -> dict:
         "fpr": _ratio(fp, n_neg), "fnr": _ratio(fn, n_pos),
         "confusion_matrix": [[tn, fp], [fn, tp]],
         "precision_at_review": precision,
-        "n_flagged": tp + fp, "n_positive": n_pos, "threshold": float(threshold),
+        "n_flagged": tp + fp, "flag_rate": (tp + fp) / len(y) if len(y) else None,
+        "n_positive": n_pos, "threshold": float(threshold),
     }
     m["undefined"] = [k for k in ("precision", "recall", "f1", "pr_auc", "roc_auc", "fpr", "fnr")
                       if m[k] is None]

@@ -83,3 +83,26 @@ def test_csv_roundtrip(engine, tmp_path):
         t = s.query(Transaction).filter_by(external_id="T1").one()
         assert t.source == "synthetic" and t.business_id == "biz1"
         assert t.device_id is None  # missing CSV column stays null, not "nan"
+
+
+def test_non_utc_offset_stored_as_utc_and_resend_is_duplicate(engine):
+    from datetime import datetime
+    rec = _rec(1, ts="2026-01-01T12:00:00+05:30")  # = 06:30 UTC
+    with session_scope(engine) as s:
+        assert ingest(s, [rec]).inserted == 1
+    with session_scope(engine) as s:
+        stored = s.query(Transaction).one().ts
+        assert stored.replace(tzinfo=None) == datetime(2026, 1, 1, 6, 30)
+        res = ingest(s, [rec])
+        assert (res.duplicates, res.conflicts) == (1, 0)
+
+
+def test_changed_label_status_or_merchant_is_a_conflict_and_first_is_kept(engine):
+    with session_scope(engine) as s:
+        ingest(s, [_rec(1, label=0, status="pending")])
+    with session_scope(engine) as s:
+        res = ingest(s, [_rec(1, label=1, status="completed", merchant_id="M2")])
+        assert (res.duplicates, res.conflicts) == (0, 1)
+    with session_scope(engine) as s:
+        t = s.query(Transaction).one()
+        assert (t.label, t.status, t.merchant_id) == (0, "pending", "M_1")

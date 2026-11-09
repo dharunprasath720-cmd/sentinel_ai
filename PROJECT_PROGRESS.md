@@ -7,14 +7,14 @@ Spec: `docs/superpowers/specs/2026-11-09-sentinel-ai-design.md` · Day 1 plan: `
 
 ```
 py -3.11 -m venv .venv && .venv\Scripts\python -m pip install -r requirements.txt   # Python 3.11.4 used
-.venv\Scripts\python -m pytest                                                      # 49 tests
+.venv\Scripts\python -m pytest                                                      # 52 tests
 set PYTHONPATH=backend && .venv\Scripts\python -m sentinel.models.run --dataset synthetic
 ```
 
 ## Day 1 — data layer, features, ML baselines: DONE (verified 2026-11-09)
 
 **Verified by running, not by reading:**
-- `pytest`: **49 passed**, no warnings. Environment check: Python 3.11.4, pandas 3.1.1, scikit-learn 1.9.1, lightgbm 4.7.0, shap 0.51.0, SQLAlchemy 2.1.8, pydantic 2.14.3.
+- `pytest`: **52 passed**, no warnings (after the review fix pass below). Environment check: Python 3.11.4, pandas 3.1.1, scikit-learn 1.9.1, lightgbm 4.7.0, shap 0.51.0, SQLAlchemy 2.1.8, pydantic 2.14.3.
 - Re-running the CLI with seed 42 reproduces `metrics.json` exactly (ignoring latency and version string).
 - Leakage test: features of the first N rows are identical whether or not later rows exist; flipping `label`/`scenario` changes no feature.
 
@@ -36,6 +36,16 @@ Splits hold 183 / 69 / 63 fraud rows (train / val / test). Review threshold flag
 4. **Plan deviations** (also in the ledger): generator rebuilt so fraud events are spread over time (random placement left val/test with 0–6 fraud rows); ring size 5 accounts x 5–6 txns instead of 6 x 10–12. `precision_at_review` equals `precision` by construction.
 5. Isolation Forest single-row latency is 20 ms — fine for the demo, slow for high volume.
 6. Docker/Postgres paths are untested on this machine (neither installed).
+
+## Independent review (Opus, whole branch) — outcome
+
+Fixed, each with a test that failed first: **non-UTC timestamps were stored as wall-clock** (broke the strictly-before rule and caused false conflicts; now normalised to UTC); **re-sent rows with changed label/status/merchant were silently counted as duplicates** (now conflicts, first record kept); **training with no fraud in validation silently shipped an always-zero model** (now a clear error); **the stated 1% review budget hid a higher realised flag rate** (test flag rate now in the report).
+
+Deferred to Day 2 (decided, not forgotten):
+- **Data too easy** (fraud is 56% at hours 2–4 vs 1.4% of legit; ring merchants are used by no one else). Already Day 2 task 1.
+- **Calibration worse than raw score** — compare Platt vs isotonic on the harder data, keep raw if neither helps, add the reliability curve to the report.
+- **Feature engine is not linear-time** (100k rows 8 s, 1M rows 285 s; `_distinct_before` Python loop). Fine at the 300k default; vectorise before using full PaySim.
+- Minors: empty/headerless CSV gives an unclear error; rejected-row index is 0-based not the CSV line; empty validation slice raises IndexError in `choose_threshold`; `is_failed` uses the row's own outcome (a label proxy in synthetic data); `train()` does not enforce a single `source`; `Account` key ignores `business_id`, `PaymentInstrument` is never filled; variance via E[x²]−mean² loses precision on huge identical amounts; reported latency excludes feature computation.
 
 ## Roadmap
 

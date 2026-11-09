@@ -67,6 +67,14 @@ def test_lgbm_beats_random_pr_auc(bundle):
     assert bundle.metrics["lightgbm"]["pr_auc"] > base_rate
 
 
+def test_validation_without_positives_raises_clear_error(df):
+    d = df.copy()
+    val_idx = chronological_split(d)[1].index
+    d.loc[val_idx, "label"] = 0
+    with pytest.raises(ValueError, match="validation"):
+        train(d, seed=42)
+
+
 def test_split_info_records_chronology(bundle):
     info = bundle.split_info
     assert info["train"]["end"] <= info["val"]["start"] <= info["val"]["end"] <= info["test"]["start"]
@@ -82,6 +90,7 @@ def test_cli_writes_report(tmp_path):
     assert set(metrics["models"]) == MODELS
     report = (run_dir / "report.md").read_text()
     assert "lightgbm" in report and "accuracy" not in report.lower()
+    assert "flag rate" in report.lower()  # realised rate shown next to the stated budget
 
 
 def test_cli_paysim_missing_file_is_clean_error(tmp_path):

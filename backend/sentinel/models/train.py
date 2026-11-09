@@ -90,6 +90,10 @@ def train(df: pd.DataFrame, seed: int = 42, review_budget_frac: float = 0.01,
     if len(np.unique(ytr)) < 2:
         raise ValueError("training split contains a single class; cannot fit supervised models")
 
+    if yva.sum() == 0:
+        raise ValueError("validation split contains no fraud rows; calibration and the review "
+                         "threshold would be meaningless. Use more data or spread fraud over time.")
+
     lr = make_pipeline(StandardScaler(),
                        LogisticRegression(class_weight="balanced", max_iter=1000, random_state=seed))
     lr.fit(Xtr, ytr)

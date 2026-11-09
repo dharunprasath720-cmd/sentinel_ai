@@ -20,11 +20,22 @@ class IngestResult:
     rejected: list[tuple[int, str]] = field(default_factory=list)
 
 
-def _fingerprint(amount: float, account_id: str, ts: datetime) -> tuple:
-    """Identity of a payload for conflict detection (DB may return naive UTC)."""
-    if ts.tzinfo is not None:
-        ts = ts.astimezone(timezone.utc).replace(tzinfo=None)
-    return (round(float(amount), 6), account_id, ts)
+PAYLOAD_FIELDS = list(TransactionIn.model_fields)
+
+
+def _fingerprint(values) -> tuple:
+    """Identity of a FULL payload (every field) for conflict detection. A re-sent id whose
+    label, status, merchant etc. differ is a conflict, never a silent duplicate.
+    The DB returns naive UTC timestamps, so both sides are reduced to naive UTC."""
+    out = []
+    for f in PAYLOAD_FIELDS:
+        v = values[f]
+        if f == "ts":
+            v = (v.astimezone(timezone.utc) if v.tzinfo is not None else v).replace(tzinfo=None)
+        elif f == "amount":
+            v = round(float(v), 6)
+        out.append(v)
+    return tuple(out)
 
 
 def _existing_ids(session: Session, model, ids: set[str]) -> set[str]:
@@ -45,16 +56,13 @@ def ingest(session: Session, records: Iterable[dict]) -> IngestResult:
     ext_ids = {t.external_id for t in valid}
     existing: dict[str, tuple] = {}
     if ext_ids:
-        rows = session.execute(
-            select(Transaction.external_id, Transaction.amount,
-                   Transaction.account_id, Transaction.ts)
-            .where(Transaction.external_id.in_(ext_ids))
-        )
-        existing = {r[0]: _fingerprint(r[1], r[2], r[3]) for r in rows}
+        rows = session.scalars(select(Transaction).where(Transaction.external_id.in_(ext_ids)))
+        existing = {r.external_id: _fingerprint({f: getattr(r, f) for f in PAYLOAD_FIELDS})
+                    for r in rows}
 
     new_txns: list[Transaction] = []
     for t in valid:
-        fp = _fingerprint(t.amount, t.account_id, t.ts)
+        fp = _fingerprint(t.model_dump())
         if t.external_id in existing:
             if existing[t.external_id] == fp:
                 result.duplicates += 1

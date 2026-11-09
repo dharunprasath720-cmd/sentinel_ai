@@ -19,6 +19,7 @@ def test_metrics_hand_computed():
     assert m["roc_auc"] == pytest.approx(20 / 21)
     assert m["pr_auc"] == pytest.approx((1 + 1 + 0.75) / 3)
     assert m["n_positive"] == 3 and m["undefined"] == []
+    assert m["flag_rate"] == pytest.approx(0.3)  # 3 of 10 rows flagged
 
 
 def test_no_accuracy_key():

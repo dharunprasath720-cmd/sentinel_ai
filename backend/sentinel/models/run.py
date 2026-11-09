@@ -17,19 +17,22 @@ def _fmt(v, digits: int = 3) -> str:
 def _report(bundle: TrainedBundle, meta: dict) -> str:
     L = [f"# Model report: {bundle.version}", "",
          f"Dataset: **{meta['dataset']}** ({meta['n_rows']} rows). "
-         f"Chronological split 60/20/20. Review budget: {meta['review_budget_frac']:.1%} of "
-         "transactions flagged (threshold chosen on the validation slice).", "",
+         f"Chronological split 60/20/20. Review budget: the threshold is set on the validation "
+         f"slice to flag about {meta['review_budget_frac']:.1%} of transactions there. The "
+         "realised flag rate on the test slice (below) can differ: scores shift over time and "
+         "ties at the threshold flag extra rows.", "",
          "## Splits", "", "| split | rows | fraud | rate | from | to |", "|---|---|---|---|---|---|"]
     for k, s in bundle.split_info.items():
         L.append(f"| {k} | {s['n']} | {s['n_positive']} | {s['positive_rate']:.2%} | "
                  f"{s['start'][:16]} | {s['end'][:16]} |")
     L += ["", "## Test-set comparison", "",
-          "| model | precision | recall | F1 | PR-AUC | ROC-AUC | FPR | FNR | precision@review | latency ms/row |",
-          "|---|---|---|---|---|---|---|---|---|---|"]
+          "| model | precision | recall | F1 | PR-AUC | ROC-AUC | FPR | FNR | precision@review | test flag rate | latency ms/row (model only) |",
+          "|---|---|---|---|---|---|---|---|---|---|---|"]
     for name, m in bundle.metrics.items():
         L.append(f"| {name} | {_fmt(m['precision'])} | {_fmt(m['recall'])} | {_fmt(m['f1'])} | "
                  f"{_fmt(m['pr_auc'])} | {_fmt(m['roc_auc'])} | {_fmt(m['fpr'], 4)} | "
-                 f"{_fmt(m['fnr'])} | {_fmt(m['precision_at_review'])} | {m['latency_ms']:.2f} |")
+                 f"{_fmt(m['fnr'])} | {_fmt(m['precision_at_review'])} | "
+                 f"{_fmt(m['flag_rate'], 4)} | {m['latency_ms']:.2f} |")
     L += ["", "## Confusion matrices (rows: actual, cols: predicted; [[TN, FP], [FN, TP]])", ""]
     for name, m in bundle.metrics.items():
         L.append(f"- **{name}** at threshold {m['threshold']:.4f}: `{m['confusion_matrix']}`")

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -29,4 +29,6 @@ class TransactionIn(BaseModel):
     def _require_timezone(cls, v: datetime) -> datetime:
         if v.tzinfo is None:
             raise ValueError("timestamp must be timezone-aware")
-        return v
+        # Normalise to UTC: SQLite drops the offset, so storing +05:30 as-is would
+        # silently turn 12:00+05:30 into 12:00 UTC and corrupt time ordering.
+        return v.astimezone(timezone.utc)
