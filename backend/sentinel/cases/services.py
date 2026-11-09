@@ -25,7 +25,8 @@ def audit(session: Session, business_id: str, actor: str, action: str, target: s
 
 
 def record_assessment(session: Session, business_id: str, txn_external_id: str,
-                      a: RiskAssessment, model_version: str) -> RiskAssessmentRow:
+                      a: RiskAssessment, model_version: str,
+                      details: dict | None = None) -> RiskAssessmentRow:
     """One row per (business, transaction); re-scoring updates it in place."""
     row = (session.query(RiskAssessmentRow)
            .filter_by(business_id=business_id, txn_external_id=txn_external_id).one_or_none())
@@ -35,6 +36,7 @@ def record_assessment(session: Session, business_id: str, txn_external_id: str,
     row.risk_score, row.risk_level, row.action = a.risk_score, a.risk_level, a.recommended_action
     row.calibrated_fraud_probability = a.calibrated_fraud_probability
     row.factors, row.model_version, row.policy_version = list(a.risk_factors), model_version, a.policy_version
+    row.details = details
     session.flush()
     return row
 

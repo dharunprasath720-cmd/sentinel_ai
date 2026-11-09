@@ -32,6 +32,8 @@ class RiskAssessmentRow(Base):
     factors: Mapped[list] = mapped_column(JSON, nullable=False)
     model_version: Mapped[str] = mapped_column(String, nullable=False)
     policy_version: Mapped[str] = mapped_column(String, nullable=False)
+    # live-scoring context: component inputs, behaviour reasons, cluster id, late flag
+    details: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class Alert(Base):

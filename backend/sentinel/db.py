@@ -22,6 +22,7 @@ def make_engine(url: str | None = None) -> Engine:
 
 def init_db(engine: Engine) -> None:
     from sentinel.cases import orm as _cases  # noqa: F401  (registers tables)
+    from sentinel.paypal import orm as _paypal  # noqa: F401  (registers tables)
     from sentinel.ingestion import orm  # noqa: F401  (registers tables)
     Base.metadata.create_all(engine)
 

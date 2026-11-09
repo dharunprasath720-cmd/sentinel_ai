@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from sentinel.cases import services
 from sentinel.cases.orm import Alert, Case, CaseAlert, CaseNote, RiskAssessmentRow, User
+from sentinel.context import AppContext
 from sentinel.db import session_scope
 from sentinel.security import (AuthError, Conflict, Forbidden, NotFound, create_token,
                                decode_token, hash_password, verify_password)
@@ -51,12 +52,14 @@ def _alert_dict(a: Alert) -> dict:
     return {"id": a.id, "txn_external_id": a.txn_external_id, "level": a.level, "status": a.status}
 
 
-def create_app(engine: Engine, secret: str | None = None) -> FastAPI:
+def create_app(engine: Engine, secret: str | None = None,
+               context: AppContext | None = None) -> FastAPI:
     secret = secret or os.environ.get("SENTINEL_JWT_SECRET")
     if not secret or len(secret) < MIN_SECRET_LEN:
         raise RuntimeError(f"SENTINEL_JWT_SECRET must be set and at least {MIN_SECRET_LEN} characters")
 
-    app = FastAPI(title="SENTINEL AI", version="0.2.0")
+    app = FastAPI(title="SENTINEL AI", version="0.3.0")
+    app.state.context = context
     bearer = HTTPBearer(auto_error=False)
 
     @app.exception_handler(AuthError)

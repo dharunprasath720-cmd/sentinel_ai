@@ -4,7 +4,7 @@ import sys
 
 PACKAGES = ["pandas", "numpy", "sklearn", "lightgbm", "shap", "sqlalchemy",
             "pydantic", "pydantic_settings", "joblib", "pytest", "networkx", "yaml",
-            "argon2", "jwt", "fastapi", "httpx", "uvicorn"]
+            "argon2", "jwt", "fastapi", "httpx", "uvicorn", "anthropic"]
 
 print("python", sys.version.split()[0])
 failed = []
