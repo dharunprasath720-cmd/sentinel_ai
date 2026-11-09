@@ -6,12 +6,15 @@ every request, so a role change or removal takes effect immediately. Every query
 the user's business: another business's ids are 404 (never 403, which would confirm they exist).
 Failed logins are indistinguishable for unknown users and wrong passwords.
 """
+import asyncio
+import json
 import os
 from typing import Literal
 
-from fastapi import Depends, FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import HTTPBearer
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session
@@ -20,10 +23,14 @@ from sentinel.cases import services
 from sentinel.cases.orm import Alert, Case, CaseAlert, CaseNote, RiskAssessmentRow, User
 from sentinel.context import AppContext
 from sentinel.db import session_scope
+from sentinel.live.bus import EventBus
+from sentinel.live.service import LiveService, Simulator
+from sentinel.paypal.webhook import BadEvent, InvalidSignature, VerificationUnavailable, process_webhook
 from sentinel.security import (AuthError, Conflict, Forbidden, NotFound, create_token,
-                               decode_token, hash_password, verify_password)
+                               decode_token, hash_password, require_role, verify_password)
 
 MIN_SECRET_LEN = 32
+HEARTBEAT_SECS = 15.0
 _DUMMY_HASH = hash_password("timing-equaliser")
 
 
@@ -48,6 +55,11 @@ class ResolveIn(BaseModel):
     outcome: Literal["suspicious", "cleared"]
 
 
+class SimulateIn(BaseModel):
+    speed: float = Field(gt=0, le=1000, description="events per second")
+    limit: int = Field(ge=1, le=100000)
+
+
 def _alert_dict(a: Alert) -> dict:
     return {"id": a.id, "txn_external_id": a.txn_external_id, "level": a.level, "status": a.status}
 
@@ -60,6 +72,14 @@ def create_app(engine: Engine, secret: str | None = None,
 
     app = FastAPI(title="SENTINEL AI", version="0.3.0")
     app.state.context = context
+    bus = EventBus()
+    live = LiveService(engine, context, bus) if context is not None and context.live_scorer else None
+    simulator = Simulator(live) if live else None
+    app.state.bus, app.state.live, app.state.simulator = bus, live, simulator
+
+    def need_live() -> None:
+        if live is None:
+            raise HTTPException(status_code=503, detail="live scoring is not configured")
     bearer = HTTPBearer(auto_error=False)
 
     @app.exception_handler(AuthError)
@@ -74,6 +94,20 @@ def create_app(engine: Engine, secret: str | None = None,
     @app.exception_handler(NotFound)
     async def _not_found(_: Request, __: NotFound):
         return JSONResponse({"detail": "Not found"}, status_code=404)
+
+    @app.exception_handler(InvalidSignature)
+    async def _bad_signature(_: Request, __: InvalidSignature):
+        return JSONResponse({"detail": "webhook signature not verified"}, status_code=401)
+
+    @app.exception_handler(VerificationUnavailable)
+    async def _verification_down(_: Request, __: VerificationUnavailable):
+        # temporary: PayPal retries deliveries that get a 5xx
+        return JSONResponse({"detail": "signature verification temporarily unavailable"},
+                            status_code=503, headers={"Retry-After": "30"})
+
+    @app.exception_handler(BadEvent)
+    async def _bad_event(_: Request, exc: BadEvent):
+        return JSONResponse({"detail": str(exc)}, status_code=400)
 
     @app.exception_handler(Conflict)
     async def _conflict(_: Request, exc: Conflict):
@@ -161,5 +195,94 @@ def create_app(engine: Engine, secret: str | None = None,
         return [{"id": e.id, "ts": e.ts.isoformat(), "actor": e.actor, "action": e.action,
                  "target": e.target, "before": e.before, "after": e.after}
                 for e in services.list_audit(session, user)]
+
+    # ------------------------------------------------------------------ live scoring
+    def authenticate(creds) -> tuple[str, str]:
+        """(business_id, role) for a bearer token, using a short-lived session so a long-lived
+        stream never pins a database connection."""
+        if creds is None:
+            raise AuthError("no token")
+        claims = decode_token(creds.credentials, secret)
+        with session_scope(engine) as s:
+            user = s.get(User, int(claims["sub"]))
+            if user is None:
+                raise AuthError("unknown user")
+            return user.business_id, user.role
+
+    @app.get("/stream/events")
+    async def stream_events(limit: int | None = Query(None, ge=1, le=10000), creds=Depends(bearer)):
+        business_id, _ = authenticate(creds)
+        need_live()
+
+        async def frames():
+            sub = bus.subscribe(business_id)
+            sent = 0
+            try:
+                yield ": connected\n\n"
+                while limit is None or sent < limit:
+                    try:
+                        event = await asyncio.wait_for(sub.get(), timeout=HEARTBEAT_SECS)
+                    except asyncio.TimeoutError:
+                        yield ": keepalive\n\n"
+                        continue
+                    yield f"data: {json.dumps(event)}\n\n"
+                    sent += 1
+            finally:
+                sub.close()
+
+        return StreamingResponse(frames(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+    @app.get("/metrics/live")
+    def metrics_live(user: User = Depends(current_user)):
+        need_live()
+        return {**live.metrics.snapshot(), "dropped": bus.dropped, "simulator": simulator.status()}
+
+    def simulator_guard(user: User) -> None:
+        need_live()
+        require_role(user.role, {"analyst", "admin"})
+        if user.business_id != context.business_id:  # the replay belongs to one business
+            raise Forbidden("the simulator belongs to another business")
+
+    @app.post("/simulate/start")
+    def simulate_start(body: SimulateIn, user: User = Depends(current_user)):
+        simulator_guard(user)
+        if context.demo_frame is None:
+            raise HTTPException(status_code=503, detail="no demo data is loaded")
+        try:
+            simulator.start(context.demo_frame, body.speed, body.limit)
+        except RuntimeError as exc:
+            raise Conflict(str(exc)) from exc
+        return {"started": True, "speed": body.speed, "limit": body.limit}
+
+    @app.post("/simulate/stop")
+    def simulate_stop(user: User = Depends(current_user)):
+        simulator_guard(user)
+        simulator.stop()
+        return simulator.status()
+
+    @app.post("/paypal/webhook")
+    async def paypal_webhook(request: Request):
+        """Authenticated by PayPal's signature, not by a bearer token."""
+        if live is None or context.paypal is None or not context.webhook_id:
+            raise HTTPException(status_code=503, detail="PayPal webhook handling is not configured")
+        raw = await request.body()  # the exact bytes PayPal signed
+        headers = {k.lower(): v for k, v in request.headers.items()}
+
+        def work():
+            pending = []
+            with session_scope(engine) as session:
+                result = process_webhook(session, context.paypal, headers, raw,
+                                         context.webhook_id, context.business_id)
+                if result.status == "processed":
+                    event = live.score_and_store(session, result.record)
+                    if event:
+                        pending.append(event)
+            for event in pending:  # only after the commit
+                live.publish(event)
+            return result
+
+        result = await run_in_threadpool(work)
+        return {"status": result.status, "transaction": result.txn_external_id}
 
     return app
