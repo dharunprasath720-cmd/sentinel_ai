@@ -17,6 +17,10 @@ class Forbidden(Exception):
     """Authenticated but not allowed (HTTP 403)."""
 
 
+class Conflict(Exception):
+    """The request is valid but the resource is in a state that forbids it (HTTP 409)."""
+
+
 class NotFound(Exception):
     """Unknown id, or an id that belongs to another business (HTTP 404, never 403)."""
 

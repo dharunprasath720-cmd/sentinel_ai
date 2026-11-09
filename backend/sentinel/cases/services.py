@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from sentinel.cases.orm import Alert, AuditLog, Case, CaseAlert, CaseNote, RiskAssessmentRow, User
 from sentinel.risk.engine import LEVELS, RiskAssessment
-from sentinel.security import Forbidden, NotFound, require_role
+from sentinel.security import Conflict, Forbidden, NotFound, require_role
 
 ACTOR_ROLES = {"analyst", "admin"}
 ACTIONS = {"ALLOW", "MONITOR", "REVIEW", "VERIFY", "HOLD_RECOMMENDED"}
@@ -71,6 +71,13 @@ def _case(session: Session, user: User, case_id: int) -> Case:
     return case
 
 
+def _require_unresolved(case: Case) -> None:
+    """A resolved case is closed: it cannot be re-approved, reopened or flipped. (Notes may
+    still be added after closure.)"""
+    if case.status.startswith("resolved"):
+        raise Conflict(f"case {case.id} is already {case.status}")
+
+
 def open_case(session: Session, user: User, alert_ids: list[int]) -> Case:
     require_role(user.role, ACTOR_ROLES)
     ids = set(alert_ids)
@@ -79,6 +86,8 @@ def open_case(session: Session, user: User, alert_ids: list[int]) -> Case:
     alerts = session.query(Alert).filter(Alert.id.in_(ids), Alert.business_id == user.business_id).all()
     if len(alerts) != len(ids):
         raise NotFound("alert")
+    if any(a.status != "open" for a in alerts):
+        raise Conflict("alert is already in a case or closed")
     case = Case(business_id=user.business_id, assignee_id=user.id, status="open")
     session.add(case)
     session.flush()
@@ -108,6 +117,7 @@ def approve_action(session: Session, user: User, case_id: int, action: str) -> C
     if action not in ACTIONS:
         raise ValueError(f"action must be one of {sorted(ACTIONS)}")
     case = _case(session, user, case_id)
+    _require_unresolved(case)
     before = {"status": case.status, "approved_action": case.approved_action}
     case.approved_action, case.status = action, "in_review"
     audit(session, user.business_id, user.username, "approve_action", f"case:{case.id}", before,
@@ -121,6 +131,7 @@ def resolve_case(session: Session, user: User, case_id: int, outcome: str) -> Ca
     if outcome not in OUTCOMES:
         raise ValueError(f"outcome must be one of {sorted(OUTCOMES)}")
     case = _case(session, user, case_id)
+    _require_unresolved(case)
     before = {"status": case.status}
     case.status = OUTCOMES[outcome]
     for link in session.query(CaseAlert).filter_by(case_id=case.id):

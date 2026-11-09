@@ -100,6 +100,16 @@ strong_source_min: 0.5
     ("{moderate: 0.2, high: 0.4, critical: 0.65}", "{moderate: 0.5, high: 0.4, critical: 0.9}"),  # not increasing
     ("critical: 0.65", "critical: 1.0"),                              # threshold not < 1
     ("single_source_cap: HIGH", "single_source_cap: SEVERE"),         # unknown level
+    ("anomaly: 0.10", "anomaly: .nan"),                               # NaN weight must not load
+    ("anomaly: 0.10", "anomaly: .inf"),
+    ("anomaly: 0.10", 'anomaly: "0.10"'),                             # string weight
+    ("anomaly: 0.10", "anomaly: true"),                               # bool is not a number
+    ("moderate: 0.2,", "moderate: .nan,"),
+    ("strong_source_min: 0.5", "strong_source_min: .nan"),            # would disable the cap
+    ("strong_source_min: 0.5", "strong_source_min: -1"),
+    ("strong_source_min: 0.5", "strong_source_min: 0"),
+    ("strong_source_min: 0.5", "strong_source_min: 1.5"),
+    ("hold_requires_cluster: true", 'hold_requires_cluster: "false"'),  # truthy string
 ])
 def test_bad_policy_fails_loudly(tmp_path, old, new):
     p = tmp_path / "p.yaml"

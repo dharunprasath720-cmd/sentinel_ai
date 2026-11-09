@@ -128,6 +128,17 @@ def test_app_refuses_without_a_strong_secret(env, monkeypatch):
     assert create_app(engine) is not None
 
 
+def test_actions_on_resolved_case_return_409(env):
+    client, _ = env
+    ana = auth(client, "ana")
+    alert_id = client.get("/alerts", headers=ana).json()[0]["id"]
+    case_id = client.post("/cases", json={"alert_ids": [alert_id]}, headers=ana).json()["id"]
+    assert client.post(f"/cases/{case_id}/resolve", json={"outcome": "cleared"}, headers=ana).status_code == 200
+    assert client.post(f"/cases/{case_id}/approve-action", json={"action": "HOLD_RECOMMENDED"}, headers=ana).status_code == 409
+    assert client.post("/cases", json={"alert_ids": [alert_id]}, headers=ana).status_code == 409
+    assert client.get(f"/cases/{case_id}", headers=ana).json()["status"] == "resolved_cleared"
+
+
 def test_role_change_takes_effect_on_existing_token(env):
     client, engine = env
     ana = auth(client, "ana")

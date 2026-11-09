@@ -19,8 +19,8 @@ from sqlalchemy.orm import Session
 from sentinel.cases import services
 from sentinel.cases.orm import Alert, Case, CaseAlert, CaseNote, RiskAssessmentRow, User
 from sentinel.db import session_scope
-from sentinel.security import (AuthError, Forbidden, NotFound, create_token, decode_token,
-                               hash_password, verify_password)
+from sentinel.security import (AuthError, Conflict, Forbidden, NotFound, create_token,
+                               decode_token, hash_password, verify_password)
 
 MIN_SECRET_LEN = 32
 _DUMMY_HASH = hash_password("timing-equaliser")
@@ -71,6 +71,10 @@ def create_app(engine: Engine, secret: str | None = None) -> FastAPI:
     @app.exception_handler(NotFound)
     async def _not_found(_: Request, __: NotFound):
         return JSONResponse({"detail": "Not found"}, status_code=404)
+
+    @app.exception_handler(Conflict)
+    async def _conflict(_: Request, exc: Conflict):
+        return JSONResponse({"detail": str(exc)}, status_code=409)
 
     @app.exception_handler(ValueError)
     async def _bad_value(_: Request, exc: ValueError):

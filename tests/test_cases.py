@@ -7,7 +7,7 @@ from sentinel.cases.orm import Alert, AuditLog, Case, CaseNote, RiskAssessmentRo
 from sentinel.db import init_db, make_engine, session_scope
 from sentinel.ingestion.orm import Transaction
 from sentinel.risk.engine import RiskAssessment, RiskEngine, RiskInputs, load_policy, DEFAULT_POLICY_PATH
-from sentinel.security import Forbidden, NotFound
+from sentinel.security import Conflict, Forbidden, NotFound
 
 
 @pytest.fixture
@@ -135,6 +135,44 @@ def test_resolving_suspicious_never_sets_a_fraud_label(engine):
         services.resolve_case(s, ana, case.id, "suspicious")
     with session_scope(engine) as s:
         assert s.query(Transaction).filter_by(external_id="T1").one().label is None
+
+
+def test_resolved_case_cannot_be_reopened_or_reresolved(engine):
+    with session_scope(engine) as s:
+        alerts = seed_alerts(s)
+        ana = user(s, "ana")
+        case = services.open_case(s, ana, [alerts[0].id])
+        services.resolve_case(s, ana, case.id, "cleared")
+        cid = case.id
+    for call in (lambda s, a: services.approve_action(s, a, cid, "HOLD_RECOMMENDED"),
+                 lambda s, a: services.resolve_case(s, a, cid, "suspicious")):
+        with pytest.raises(Conflict):
+            with session_scope(engine) as s:
+                call(s, user(s, "ana"))
+    with session_scope(engine) as s:
+        case = s.get(Case, cid)
+        assert case.status == "resolved_cleared" and case.approved_action is None
+        assert [a.status for a in s.query(Alert).all()] == ["closed"]
+        assert [r.action for r in s.query(AuditLog)] == ["open_case", "resolve_case"]
+        services.add_note(s, user(s, "ana"), cid, "post-closure note is allowed")
+
+
+def test_alert_already_in_a_case_or_closed_cannot_be_reused(engine):
+    with session_scope(engine) as s:
+        alerts = seed_alerts(s)
+        ana = user(s, "ana")
+        case = services.open_case(s, ana, [alerts[0].id])
+        aid, cid = alerts[0].id, case.id
+    with pytest.raises(Conflict):
+        with session_scope(engine) as s:
+            services.open_case(s, user(s, "ana"), [aid])  # already in_review
+    with session_scope(engine) as s:
+        services.resolve_case(s, user(s, "ana"), cid, "cleared")
+    with pytest.raises(Conflict):
+        with session_scope(engine) as s:
+            services.open_case(s, user(s, "ana"), [aid])  # closed
+    with session_scope(engine) as s:
+        assert s.query(Case).count() == 1 and s.get(Alert, aid).status == "closed"
 
 
 def test_only_admin_reads_audit(engine):

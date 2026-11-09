@@ -8,7 +8,8 @@ Levels: score >= critical|high|moderate thresholds. Cap: unless ml_prob or graph
 `strong_source_min`, the level cannot exceed `single_source_cap` (an anomaly alone is never
 proof). Actions are recommendations only; HOLD_RECOMMENDED needs CRITICAL + a flagged cluster.
 """
-from dataclasses import dataclass, field, fields
+import math
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -40,17 +41,30 @@ class Policy:
     strong_source_min: float = 0.5
 
 
+def _number(value, name: str) -> float:
+    """Strictly a finite number: no strings, bools, NaN or inf (NaN would silently turn every
+    decision into ALLOW because every comparison with NaN is False)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise ValueError(f"{name} must be a finite number, got {value!r}")
+    return float(value)
+
+
 def load_policy(path: Path) -> Policy:
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     try:
-        weights = {k: float(v) for k, v in raw["weights"].items()}
-        th = {k: float(v) for k, v in raw["thresholds"].items()}
+        weights = {k: _number(v, f"weight '{k}'") for k, v in raw["weights"].items()}
+        th = {k: _number(v, f"threshold '{k}'") for k, v in raw["thresholds"].items()}
+        strong = _number(raw["strong_source_min"], "strong_source_min")
+        hold = raw["hold_requires_cluster"]
+        if not isinstance(hold, bool):
+            raise ValueError(f"hold_requires_cluster must be true or false, got {hold!r}")
         policy = Policy(version=str(raw["version"]), weights=weights, thresholds=th,
                         single_source_cap=str(raw["single_source_cap"]),
-                        hold_requires_cluster=bool(raw["hold_requires_cluster"]),
-                        strong_source_min=float(raw["strong_source_min"]))
+                        hold_requires_cluster=hold, strong_source_min=strong)
     except (KeyError, TypeError, AttributeError) as exc:
         raise ValueError(f"policy file is missing or malformed: {exc!r}") from exc
+    if not 0 < strong <= 1:
+        raise ValueError(f"strong_source_min must be in (0, 1], got {strong}")
     if set(weights) != set(COMPONENTS):
         raise ValueError(f"weights must be exactly {COMPONENTS}, got {sorted(weights)}")
     if abs(sum(weights.values()) - 1.0) > 1e-6 or min(weights.values()) < 0:

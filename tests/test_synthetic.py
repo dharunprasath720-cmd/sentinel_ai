@@ -100,6 +100,30 @@ def test_lightgbm_not_trivial(df):
     assert 0.15 < pr_auc < 0.95
 
 
+def _legit_multi_account_devices(df):
+    ring_devs = set(df[df["scenario"] == "ring"]["device_id"])
+    per_dev = df.dropna(subset=["device_id"]).groupby("device_id").agg(
+        n=("account_id", "nunique"), fraud=("label", "max"))
+    return set(per_dev[(per_dev["n"] >= 3) & (per_dev["fraud"] == 0)].index) - ring_devs
+
+
+def test_legit_devices_shared_by_three_or_more_accounts_exist(df):
+    # otherwise "device shared by >= 3 accounts" would simply be the ring label
+    assert len(_legit_multi_account_devices(df)) >= 2
+
+
+def test_legit_flash_sale_bursts_across_accounts_exist(df):
+    legit = df[(df["scenario"] == "burst") & (df["label"] == 0)]
+    found = False
+    for _, g in legit.groupby("merchant_id"):
+        g = g.sort_values("ts")
+        for t0 in g["ts"]:
+            window = g[(g["ts"] >= t0) & (g["ts"] <= t0 + pd.Timedelta(minutes=30))]
+            if window["account_id"].nunique() >= 3:
+                found = True
+    assert found
+
+
 def test_shared_device_not_always_fraud(df):
     per_dev = df.dropna(subset=["device_id"]).groupby("device_id").agg(
         n_acct=("account_id", "nunique"), fraud=("label", "max"))

@@ -75,6 +75,19 @@ def test_ring_detected_with_evidence(synth, synth_clusters):
     assert all(ring_accounts & set(c.accounts) for c in flagged)  # no flagged cluster without ring accounts
 
 
+def test_legit_shared_terminals_and_flash_sales_are_not_flagged(synth, synth_clusters):
+    ring_devs = set(synth[synth["scenario"] == "ring"]["device_id"])
+    per_dev = synth.dropna(subset=["device_id"]).groupby("device_id").agg(
+        n=("account_id", "nunique"), fraud=("label", "max"))
+    legit_devs = set(per_dev[(per_dev["n"] >= 3) & (per_dev["fraud"] == 0)].index) - ring_devs
+    assert len(legit_devs) >= 2
+    flagged = [c for c in synth_clusters if c.flagged]
+    assert flagged and not any(set(c.devices) & legit_devs for c in flagged)
+    # the legitimate multi-account devices are still *seen* (shared_device) but never flagged
+    seen = [c for c in synth_clusters if set(c.devices) & legit_devs]
+    assert seen and all(not c.flagged for c in seen)
+
+
 def test_legit_unusual_accounts_not_in_flagged_clusters(synth, synth_clusters):
     ring_accounts = set(synth[synth["scenario"] == "ring"]["account_id"])
     lu = set(synth[synth["scenario"] == "legit_unusual"]["account_id"]) - ring_accounts

@@ -54,11 +54,17 @@ class BehaviourEngine:
     def __init__(self, window: int = 50, min_history: int = 5):
         self.window = window
         self.min_history = min_history
-        self._state: dict[str, _State] = {}
+        self._state: dict[tuple, _State] = {}
+
+    @staticmethod
+    def _key(txn: dict) -> tuple:
+        """Baselines are per (business, account): the same account id in two businesses is
+        two different accounts."""
+        return (txn.get("business_id"), txn["account_id"])
 
     # ------------------------------------------------------------------ scoring
     def indicators(self, txn: dict) -> BehaviourIndicators:
-        st = self._state.get(txn["account_id"]) or _State(self.window)
+        st = self._state.get(self._key(txn)) or _State(self.window)
         ts, amount = txn["ts"], float(txn["amount"])
         burst = sum(1 for t in st.recent if 0 < (ts - t).total_seconds() <= BURST_SECS)
         streak = st.fail_streak + 1 if txn.get("status") == "failed" else 0
@@ -103,7 +109,7 @@ class BehaviourEngine:
 
     # ------------------------------------------------------------------ learning
     def update(self, txn: dict, contaminated: bool = False) -> None:
-        st = self._state.setdefault(txn["account_id"], _State(self.window))
+        st = self._state.setdefault(self._key(txn), _State(self.window))
         ts = txn["ts"]
         while st.recent and (ts - st.recent[0]).total_seconds() > BURST_SECS:
             st.recent.popleft()
@@ -127,8 +133,8 @@ class BehaviourEngine:
         st.last_clean_ts = ts
         st.n_history += 1
 
-    def profile(self, account_id: str) -> dict:
-        st = self._state.get(account_id)
+    def profile(self, account_id: str, business_id: str | None = None) -> dict:
+        st = self._state.get((business_id, account_id))
         if st is None or not st.amounts:
             return {"n_history": 0, "median_amount": None, "mad_amount": None,
                     "typical_hours": [], "mean_interarrival_secs": None,
@@ -145,7 +151,9 @@ class BehaviourEngine:
     # ------------------------------------------------------------------ batch replay
     def replay(self, df: pd.DataFrame, contaminated_ids: frozenset = frozenset()) -> pd.DataFrame:
         """Chronological replay (mutates this engine). Rows with an identical timestamp are all
-        scored before any of them updates the baseline. Index aligned to `df`."""
+        scored before any of them updates the baseline. Index aligned to `df`.
+        `contaminated_ids` holds (business_id, external_id) pairs (business_id None when the
+        frame has no such column); those rows are scored but never move a baseline."""
         d = df.reset_index(drop=True)
         ts = pd.to_datetime(d["ts"], utc=True)
         secs = (ts - EPOCH).dt.total_seconds().to_numpy()
@@ -160,6 +168,7 @@ class BehaviourEngine:
             for pos in order[i:j]:
                 row = d.iloc[pos]
                 txn = {"external_id": row["external_id"], "account_id": row["account_id"],
+                       "business_id": None if pd.isna(row.get("business_id")) else row.get("business_id"),
                        "merchant_id": row.get("merchant_id"), "amount": row["amount"],
                        "status": row.get("status"), "ts": ts.iloc[pos]}
                 if pd.isna(txn["merchant_id"]):
@@ -167,7 +176,7 @@ class BehaviourEngine:
                 results[pos] = self.indicators(txn)
                 group.append(txn)
             for txn in group:
-                self.update(txn, contaminated=txn["external_id"] in contaminated_ids)
+                self.update(txn, contaminated=(txn["business_id"], txn["external_id"]) in contaminated_ids)
             i = j
         out = pd.DataFrame([asdict(r) for r in results])
         out.index = df.index

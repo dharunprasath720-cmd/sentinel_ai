@@ -99,7 +99,9 @@ def score_frame(df: pd.DataFrame, bundle, engine: RiskEngine,
     pass1 = _assess_all(engine, ml, anomaly, beh1, graph, velocity, zeros, zeros, flagged)
     high1 = pass1["risk_level"].isin(HIGH_PLUS).to_numpy()
 
-    contaminated = frozenset(d.loc[high1, "external_id"])
+    biz_vals = (d["business_id"].to_numpy() if "business_id" in d
+                else np.full(len(d), None, dtype=object))
+    contaminated = frozenset(zip(biz_vals[high1], d.loc[high1, "external_id"]))  # (business, id)
     beh2 = BehaviourEngine().replay(d, contaminated_ids=contaminated)["deviation_score"].to_numpy()
     bad = high1.astype(float)
     biz_col = ["business_id"] if "business_id" in d else []

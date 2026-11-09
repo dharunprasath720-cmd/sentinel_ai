@@ -55,6 +55,12 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     order = np.lexsort((d["external_id"].to_numpy(), t_all))
     s = d.iloc[order].reset_index(drop=True)
     s["_t"] = t_all[order]
+    # every per-entity key is scoped by business: the same account/merchant/device id in two
+    # businesses is two different entities and must never share history
+    biz = s["business_id"].astype(str) if "business_id" in s.columns else pd.Series("", index=s.index)
+    s["_ak"] = biz + "|" + s["account_id"].astype(str)
+    s["_mk"] = (biz + "|" + s["merchant_id"].astype(str)).where(s["merchant_id"].notna())
+    s["_dk"] = (biz + "|" + s["device_id"].astype(str)).where(s["device_id"].notna())
     ts_s = ts_utc.iloc[order].reset_index(drop=True)
     n = len(s)
 
@@ -71,7 +77,7 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     f["type_code"] = s["type"].map(TYPE_CODES).fillna(-1).to_numpy(dtype=float)
     f["secs_since_prev"][:] = GAP_CAP_SECS
 
-    for _, idx in s.groupby("account_id", sort=False).indices.items():
+    for _, idx in s.groupby("_ak", sort=False).indices.items():
         ta = t[idx]
         left = np.searchsorted(ta, ta, side="left")  # rows strictly earlier
         for name, w in (("txn_count_5m", 300), ("txn_count_1h", 3600), ("txn_count_24h", 86400)):
@@ -91,16 +97,16 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
         prev = np.where(has, ta[np.maximum(left - 1, 0)], 0.0)
         f["secs_since_prev"][idx] = np.where(has, np.minimum(ta - prev, GAP_CAP_SECS), GAP_CAP_SECS)
 
-    pairs = s.dropna(subset=["merchant_id"]).groupby(["account_id", "merchant_id"], sort=False).indices
+    pairs = s.dropna(subset=["merchant_id"]).groupby(["_ak", "merchant_id"], sort=False).indices
     pair_pos = s.dropna(subset=["merchant_id"]).index.to_numpy()
     for _, loc in pairs.items():
         idx = pair_pos[loc]
         tp = t[idx]
         f["repeat_counterparty_count"][idx] = np.searchsorted(tp, tp, side="left")
 
-    f["device_account_count"] = _distinct_before(s, "device_id", "account_id")
-    f["acct_instrument_count"] = _distinct_before(s, "account_id", "instrument_id")
-    f["merchant_account_count"] = _distinct_before(s, "merchant_id", "account_id")
+    f["device_account_count"] = _distinct_before(s, "_dk", "_ak")
+    f["acct_instrument_count"] = _distinct_before(s, "_ak", "instrument_id")
+    f["merchant_account_count"] = _distinct_before(s, "_mk", "_ak")
 
     feats = pd.DataFrame(f)[FEATURE_COLUMNS]
     inv = np.empty_like(order)
