@@ -1,0 +1,26 @@
+# SENTINEL AI risk policy. Versioned: every stored assessment records `version`.
+# risk_score = sum(weight * normalised_input) in [0, 1]. It is a risk SCORE, not a probability.
+# Only the ML component (ml_prob) is a calibrated probability.
+version: "policy-2026-11-09-a"
+
+weights:            # must sum to 1.0
+  ml_prob: 0.35
+  anomaly: 0.10
+  behaviour: 0.15
+  graph: 0.20
+  velocity: 0.10
+  account_history: 0.05
+  merchant_risk: 0.05
+
+thresholds:         # strictly increasing, all in (0, 1); starting values, re-derived from the
+  moderate: 0.20    # validation slice and the analyst review budget in the scoring pipeline
+  high: 0.40
+  critical: 0.65
+
+# A level above this cap needs a strong independent source: ml_prob or graph >= strong_source_min.
+# Anomaly, behaviour and velocity alone are never proof of fraud.
+single_source_cap: HIGH
+strong_source_min: 0.5
+
+# HOLD_RECOMMENDED is only ever suggested for a CRITICAL transaction that sits in a flagged cluster.
+hold_requires_cluster: true
