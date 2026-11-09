@@ -7,3 +7,6 @@ artifacts/
 data/raw/
 .superpowers/
 .pytest_cache/
+.env.*
+!.env.example
+demo.db

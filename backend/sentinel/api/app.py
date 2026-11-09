@@ -8,6 +8,7 @@ Failed logins are indistinguishable for unknown users and wrong passwords.
 """
 import asyncio
 import json
+import logging
 import os
 from typing import Literal
 
@@ -231,7 +232,11 @@ def create_app(engine: Engine, secret: str | None = None,
         agent = agent_for(session, user)
         if agent.llm is None:
             raise HTTPException(status_code=503, detail="no language model is configured for chat")
-        return agent.chat([m.model_dump() for m in body.messages])
+        try:
+            return agent.chat([m.model_dump() for m in body.messages])
+        except Exception as exc:  # noqa: BLE001  (provider/network failures: never leak details)
+            logging.getLogger("sentinel.agent").warning("chat model call failed: %s", type(exc).__name__)
+            raise HTTPException(status_code=502, detail="the language model request failed") from exc
 
     # ------------------------------------------------------------------ live scoring
     def authenticate(creds) -> tuple[str, str]:

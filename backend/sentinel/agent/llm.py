@@ -9,8 +9,11 @@
     call (Task 8); set use_fallbacks=False if the API rejects it.
   * credentials only from the environment / `ant auth login` profile, never from code.
 """
+import logging
+import os
 from typing import Protocol
 
+log = logging.getLogger("sentinel.llm")
 MODEL = "claude-opus-5-5"
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 
@@ -31,12 +34,21 @@ class AnthropicLLM:
         if self.use_fallbacks:
             params["betas"] = [*params.get("betas", []), FALLBACK_BETA]
             params["extra_body"] = {**params.get("extra_body", {}), "fallbacks": "default"}
-        return self.client.beta.messages.create(model=self.model, **params)
+        resp = self.client.beta.messages.create(model=self.model, **params)
+        usage = getattr(resp, "usage", None)
+        if usage is not None:  # token counts only: never prompts or completions
+            log.info("claude usage: model=%s input=%s output=%s cache_read=%s cache_write=%s stop=%s", self.model,
+                     getattr(usage, "input_tokens", None), getattr(usage, "output_tokens", None),
+                     getattr(usage, "cache_read_input_tokens", None),
+                     getattr(usage, "cache_creation_input_tokens", None), getattr(resp, "stop_reason", None))
+        return resp
 
     @classmethod
     def from_env(cls) -> "AnthropicLLM | None":
-        """An LLM if credentials are available, else None (the agent then runs deterministically)."""
-        try:
-            return cls()
-        except Exception:  # noqa: BLE001  (missing credentials raise at construction)
+        """An LLM only if ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN is set; otherwise None and the
+        agent runs deterministically. (The SDK happily constructs a client with no credentials and
+        only fails on the first request, so construction is not a usable check. For an
+        `ant auth login` profile, build AnthropicLLM() explicitly.)"""
+        if not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")):
             return None
+        return cls()

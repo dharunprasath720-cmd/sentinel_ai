@@ -32,11 +32,32 @@ def test_fallbacks_can_be_switched_off_and_existing_betas_are_kept():
     assert "extra_body" not in c.calls[0] and c.calls[0]["betas"] == ["x"]
 
 
-def test_from_env_returns_none_when_credentials_are_missing(monkeypatch):
-    def boom(*a, **k):
-        raise anthropic.AnthropicError("no credentials")
-    monkeypatch.setattr(anthropic, "Anthropic", boom)
+def test_token_usage_is_logged_without_logging_content(caplog):
+    import logging
+    c = RecordingClient()
+    c.beta.messages.create = lambda **kw: NS(content=[NS(type="text", text="SECRET-CONTENT")], stop_reason="end_turn",
+                                             usage=NS(input_tokens=1234, output_tokens=56,
+                                                      cache_read_input_tokens=7, cache_creation_input_tokens=0))
+    caplog.set_level(logging.INFO)
+    AnthropicLLM(client=c).create(max_tokens=10, messages=[{"role": "user", "content": "PRIVATE-PROMPT"}])
+    text = " ".join(r.getMessage() for r in caplog.records if r.name == "sentinel.llm")
+    assert "input=1234" in text and "output=56" in text and "cache_read=7" in text
+    assert "SECRET-CONTENT" not in text and "PRIVATE-PROMPT" not in text
+
+
+def test_from_env_returns_none_without_credentials_even_though_the_sdk_would_construct(monkeypatch):
+    # the SDK builds a client with no credentials and only fails on the first request; we must not
+    # report such an agent as "configured"
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+    anthropic.Anthropic()  # constructing really does not raise
     assert AnthropicLLM.from_env() is None
+
+
+def test_from_env_accepts_an_auth_token_too(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "token-not-real")
+    assert isinstance(AnthropicLLM.from_env(), AnthropicLLM)
 
 
 def test_from_env_builds_a_client_when_a_key_is_present(monkeypatch):

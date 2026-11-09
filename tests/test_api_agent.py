@@ -67,6 +67,17 @@ def test_chat_validates_the_request_body(world, body):
     assert client.post("/agent/chat", json=body, headers=auth(client, "ana")).status_code == 422
 
 
+def test_chat_reports_a_failed_model_call_as_502_without_leaking_details(world):
+    class Broken:
+        def create(self, **kw):
+            raise RuntimeError("secret-internal-detail: key sk-ant-xxxx rejected")
+
+    client = make(world, Broken())
+    r = client.post("/agent/chat", json={"messages": [{"role": "user", "content": "hi"}]},
+                    headers=auth(client, "ana"))
+    assert r.status_code == 502 and "secret-internal-detail" not in r.text and "sk-ant" not in r.text
+
+
 def test_chat_endpoint_roles_and_success(world):
     client = make(world, ScriptedLLM(reply(text_block("Nothing to report."))))
     body = {"messages": [{"role": "user", "content": "Any recent alerts?"}]}
