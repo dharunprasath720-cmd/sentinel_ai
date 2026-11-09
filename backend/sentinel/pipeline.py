@@ -25,6 +25,15 @@ CLUSTER_LOOKBACK_SECS = 24 * 3600
 CLUSTER_TRIGGER_ACCOUNTS = 3
 
 
+def graph_signal(device_accounts, merchant_accounts, flagged):
+    """Graph risk input in [0, 1] from point-in-time window counts (distinct accounts seen on the
+    device / at the merchant in the last 2h, including this one) and the as-of cluster flag.
+    Shared by the batch pipeline and the live scorer so the two cannot drift apart."""
+    dev = np.clip((np.asarray(device_accounts) - 1) / 4.0, 0, 1) * 0.8
+    mer = np.clip((np.asarray(merchant_accounts) - 2) / 6.0, 0, 1) * 0.5
+    return np.where(flagged, 0.9, np.maximum(dev, mer))
+
+
 def fit_normalisers(train_df: pd.DataFrame) -> dict[str, Normaliser]:
     """Fitted on the TRAIN slice only."""
     return {"velocity": Normaliser.fit(build_features(train_df)["txn_count_1h"])}
@@ -87,9 +96,8 @@ def score_frame(df: pd.DataFrame, bundle, engine: RiskEngine,
     win = window_indicators(d)
     flagged, cluster_id = _cluster_flags(d, win)
 
-    dev = np.clip((win["device_accounts_window"].to_numpy() - 1) / 4.0, 0, 1) * 0.8
-    mer = np.clip((win["merchant_accounts_window"].to_numpy() - 2) / 6.0, 0, 1) * 0.5
-    graph = np.where(flagged, 0.9, np.maximum(dev, mer))
+    graph = graph_signal(win["device_accounts_window"].to_numpy(),
+                         win["merchant_accounts_window"].to_numpy(), flagged)
     velocity = np.array([normalisers["velocity"].transform(v, strict=True)
                          for v in feats["txn_count_1h"]])
     ml, anomaly = preds["lgbm_prob"].to_numpy(), preds["anomaly_score"].to_numpy()
