@@ -87,4 +87,40 @@ describe("Overview page", () => {
     await userEvent.selectOptions(screen.getByLabelText("Data source"), "paypal_sandbox");
     await waitFor(() => expect(client.calls.some((c) => c.path === "/metrics/overview" && c.params?.source === "paypal_sandbox")).toBe(true));
   });
+
+  it("the daily chart has a legend naming both lines and a partial-day note", async () => {
+    renderPage(<Overview />, { client: fakeClient(routes()) });
+    const legend = await screen.findByRole("list", { name: /daily chart legend/i });
+    expect(within(legend).getByText("All transactions")).toBeInTheDocument();
+    expect(within(legend).getByText("HIGH + CRITICAL")).toBeInTheDocument();
+    expect(screen.getByText(/last day may be partial/i)).toBeInTheDocument();
+  });
+
+  it("offers a linear or log scale for the distribution, log by default", async () => {
+    renderPage(<Overview />, { client: fakeClient(routes()) });
+    const log = await screen.findByRole("button", { name: "Log scale" });
+    const linear = screen.getByRole("button", { name: "Linear scale" });
+    expect(log).toHaveAttribute("aria-pressed", "true");
+    expect(linear).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(linear);
+    expect(linear).toHaveAttribute("aria-pressed", "true");
+    expect(log).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("clicking a risk level filters the recent list to it, and clicking again clears the filter", async () => {
+    const client = fakeClient(routes({
+      "GET /transactions": (c: { params?: { level?: string } }) => c.params?.level === "MODERATE"
+        ? [txn("TXN-MOD", "HIGH", "2026-01-02T09:00:00+00:00")]
+        : c.params?.level === "CRITICAL" ? [txn("TXN-CRIT", "CRITICAL", "2026-01-02T10:00:00+00:00")]
+        : [txn("TXN-HIGH", "HIGH", "2026-01-02T11:00:00+00:00")] }));
+    renderPage(<Overview />, { client });
+    const moderate = await screen.findByRole("button", { name: /MODERATE/ });
+    await userEvent.click(moderate);
+    expect(moderate).toHaveAttribute("aria-pressed", "true");
+    expect(await screen.findByRole("link", { name: "TXN-MOD" })).toBeInTheDocument();
+    expect(client.calls.some((c) => c.path === "/transactions" && c.params?.level === "MODERATE")).toBe(true);
+    await userEvent.click(moderate);
+    expect(moderate).toHaveAttribute("aria-pressed", "false");
+    expect(await screen.findByRole("link", { name: "TXN-HIGH" })).toBeInTheDocument();
+  });
 });

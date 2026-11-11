@@ -5,6 +5,7 @@ import { ApiError } from "../api/client";
 import type { Alert, CaseSummary } from "../api/types";
 import { canAct } from "../auth/roles";
 import { useSession } from "../auth/session";
+import { PageHeader } from "../components/PageHeader";
 import { useSource } from "../source";
 import { RiskBadge } from "../components/RiskBadge";
 import { EmptyState, ErrorState, Spinner } from "../components/states";
@@ -38,7 +39,7 @@ export function Investigation() {
 
   return (
     <div className="grid">
-      <h1>Investigation Workspace</h1>
+      <PageHeader title="Investigation Workspace" subtitle="Work alerts into cases, with the evidence beside you" />
       <div className="split">
         <section className="panel" aria-label="Alerts and cases">
           <div className="row" role="tablist">

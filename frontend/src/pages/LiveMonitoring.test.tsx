@@ -142,4 +142,25 @@ describe("LiveMonitoring page", () => {
     await screen.findByText("SYN-1");
     expect(screen.queryByText("PP-1")).toBeNull();
   });
+
+  it("new live rows animate in and HIGH+ ones pulse; rows from the database do not", async () => {
+    const { s } = setup();
+    await screen.findByText("OLD-HIGH");
+    await waitFor(() => expect(screen.getByText(/connected/i)).toBeInTheDocument());
+    act(() => { s.push(live("NEW-H")); s.push(live("NEW-L", { risk_level: "LOW", alert: false })); });
+    const high = (await screen.findByText("NEW-H")).closest("tr")!;
+    const low = (await screen.findByText("NEW-L")).closest("tr")!;
+    expect(high).toHaveClass("row-new", "row-pulse");
+    expect(low).toHaveClass("row-new");
+    expect(low).not.toHaveClass("row-pulse");
+    expect(screen.getByText("OLD-HIGH").closest("tr")).not.toHaveClass("row-new");
+  });
+
+  it("shows how many events arrived in the last 10 seconds", async () => {
+    const { s } = setup();
+    await screen.findByText("OLD-HIGH");
+    await waitFor(() => expect(screen.getByText(/connected/i)).toBeInTheDocument());
+    act(() => { s.push(live("R-1")); s.push(live("R-2")); });
+    expect(await screen.findByText(/2 events in the last 10 s/i)).toBeInTheDocument();
+  });
 });

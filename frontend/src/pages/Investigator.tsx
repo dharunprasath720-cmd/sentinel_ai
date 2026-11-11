@@ -3,6 +3,7 @@ import { ApiError } from "../api/client";
 import type { ChatResult } from "../api/types";
 import { canAct } from "../auth/roles";
 import { useSession } from "../auth/session";
+import { PageHeader } from "../components/PageHeader";
 
 const MAX_CHARS = 8000;   // the server's per-message limit
 const MAX_MESSAGES = 40;  // the server's per-conversation limit
@@ -53,7 +54,7 @@ export function Investigator() {
   const [busy, setBusy] = useState(false);
 
   if (!canAct(role)) {
-    return <div className="grid"><h1>AI Investigator</h1>
+    return <div className="grid"><PageHeader title="AI Investigator" subtitle="Questions answered from retrieved evidence" />
       <div className="panel muted">The AI investigator is available to analysts and admins.</div></div>;
   }
 
@@ -80,10 +81,9 @@ export function Investigator() {
 
   return (
     <div className="grid">
-      <div className="row">
-        <h1>AI Investigator</h1>
+      <PageHeader title="AI Investigator" subtitle="Questions answered from retrieved evidence">
         <button className="btn" onClick={() => { setTurns([]); setError(null); }}>New conversation</button>
-      </div>
+      </PageHeader>
       <div className="muted">Answers come only from retrieved evidence and are for analyst review. The investigator
         never decides that something is fraud and never takes an action.</div>
       {turns.map((t, i) => <Reply key={i} turn={t} />)}

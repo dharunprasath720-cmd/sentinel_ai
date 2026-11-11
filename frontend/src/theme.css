@@ -84,3 +84,76 @@ tr.clickable:hover { background: var(--panel-2); }
 .bar { height: 10px; border-radius: 5px; background: var(--accent); }
 .split { display: grid; grid-template-columns: minmax(260px, 340px) 1fr; gap: 1rem; align-items: start; }
 @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+
+/* ---------------------------------------------------------------- page headers, chips, legends */
+.page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+  padding-bottom: 0.75rem; border-bottom: 1px solid var(--border); }
+.page-header h1 { margin: 0; }
+.page-subtitle { color: var(--muted); font-size: 0.95rem; margin-top: 0.15rem; }
+.spread { justify-content: space-between; }
+.small { font-size: 0.82rem; }
+.btn-small { padding: 0.2rem 0.7rem; font-size: 0.85rem; }
+.btn-active { background: #1d4fa8; border-color: #2c63c9; }
+.level-chip { display: inline-flex; align-items: center; gap: 0.4rem; background: var(--panel-2); border: 2px solid var(--border);
+  border-radius: 999px; padding: 0.2rem 0.75rem; cursor: pointer; }
+.level-chip:hover { filter: brightness(1.15); }
+.level-chip.selected { background: #1b2c4d; box-shadow: 0 0 0 2px rgba(106, 165, 255, 0.35); }
+.swatch { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 3px; }
+.legend { list-style: none; display: flex; gap: 1.25rem; padding: 0; margin: 0.25rem 0; color: var(--muted); }
+.legend li { display: flex; align-items: center; gap: 0.4rem; }
+.search-btn { display: inline-flex; align-items: center; gap: 0.4rem; }
+kbd { border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 0 0.35rem; font-size: 0.75rem;
+  color: var(--muted); font-family: var(--font); }
+
+/* ---------------------------------------------------------------- command palette */
+.palette-overlay { align-items: start; padding-top: 14vh; }
+.palette { width: min(560px, 92vw); display: grid; gap: 0.6rem; padding: 0.8rem; }
+.palette input { width: 100%; box-sizing: border-box; padding: 0.7rem 0.9rem; font-size: 1.05rem; }
+.palette ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.palette-item { display: flex; justify-content: space-between; gap: 1rem; padding: 0.55rem 0.8rem; border-radius: 8px; cursor: pointer; }
+.palette-item.selected { background: var(--panel-2); outline: 1px solid var(--accent); }
+.palette-empty, .palette-foot { padding: 0.3rem 0.8rem; font-size: 0.85rem; }
+
+/* ---------------------------------------------------------------- live feed motion */
+@keyframes row-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@keyframes row-pulse { 0% { box-shadow: inset 0 0 0 999px rgba(255, 93, 108, 0.38); } 100% { box-shadow: inset 0 0 0 999px rgba(255, 93, 108, 0); } }
+tr.row-new { animation: row-in 0.35s ease-out; }
+tr.row-pulse { animation: row-in 0.35s ease-out, row-pulse 1.6s ease-out; }
+
+/* ---------------------------------------------------------------- login */
+.login-page { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); }
+.login-hero { position: relative; overflow: hidden; display: grid; align-content: center; padding: 4rem clamp(1.5rem, 6vw, 6rem);
+  background: linear-gradient(160deg, #0f1c36 0%, #0a1020 70%); border-right: 1px solid var(--border); }
+.login-hero h1 { font-size: clamp(2.4rem, 5vw, 3.6rem); letter-spacing: 0.18em; margin: 0.4rem 0 0.2rem; }
+.login-sub { color: var(--accent); font-size: 1.15rem; margin: 0 0 2rem; letter-spacing: 0.04em; }
+.login-mark { width: 3.4rem; height: 3.4rem; display: grid; place-items: center; border-radius: 14px; color: var(--accent);
+  background: rgba(106, 165, 255, 0.12); border: 1px solid rgba(106, 165, 255, 0.35); }
+.login-points { list-style: none; padding: 0; margin: 0; display: grid; gap: 1.1rem; max-width: 30rem; }
+.login-points li { display: flex; align-items: center; gap: 0.8rem; color: var(--muted); font-size: 1.02rem; }
+.login-points svg { color: var(--accent); flex: none; }
+.login-glow { position: absolute; width: 36rem; height: 36rem; right: -14rem; bottom: -16rem; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(106, 165, 255, 0.22), transparent 65%); animation: glow 7s ease-in-out infinite alternate; }
+@keyframes glow { from { transform: scale(0.9); opacity: 0.6; } to { transform: scale(1.1); opacity: 1; } }
+.login-card { align-self: center; justify-self: center; width: min(26rem, 88%); display: grid; gap: 1.35rem; padding: 2.2rem;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35); }
+.login-card h2 { margin: 0; font-size: 1.5rem; }
+.field { display: grid; gap: 0.5rem; }
+.field label { color: var(--muted); font-size: 0.9rem; letter-spacing: 0.02em; }
+.field input { padding: 0.75rem 0.9rem; font-size: 1.02rem; border-radius: 8px; width: 100%; box-sizing: border-box; }
+.field input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.input-group { position: relative; }
+.input-group input { padding-right: 3rem; }
+.icon-btn { position: absolute; right: 0.4rem; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer;
+  color: var(--muted); padding: 0.4rem; border-radius: 6px; display: grid; place-items: center; }
+.icon-btn:hover { color: var(--text); background: var(--panel-2); }
+.hint { color: var(--moderate); font-size: 0.85rem; }
+.form-error { color: #ffb3bb; background: rgba(255, 93, 108, 0.1); border: 1px solid var(--critical); border-radius: 8px; padding: 0.6rem 0.8rem; }
+.btn-wide { width: 100%; padding: 0.75rem; font-size: 1.05rem; }
+.demo-users { display: grid; gap: 0.6rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.chip { background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 0.3rem 0.8rem; cursor: pointer; }
+.chip:hover { border-color: var(--accent); }
+@media (max-width: 900px) { .login-page { grid-template-columns: 1fr; } .login-hero { padding: 2.5rem 1.5rem; border-right: none; border-bottom: 1px solid var(--border); } }
+
+@media (prefers-reduced-motion: reduce) {
+  tr.row-new, tr.row-pulse, .login-glow { animation: none; }
+}

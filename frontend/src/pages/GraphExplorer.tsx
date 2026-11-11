@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "../api/client";
 import type { ClusterSummary, GraphPayload } from "../api/types";
 import { useSession } from "../auth/session";
+import { PageHeader } from "../components/PageHeader";
 import { EmptyState, ErrorState, Spinner } from "../components/states";
 import { SOURCE_LABELS, useSource } from "../source";
 import { GraphCanvas } from "./graph/GraphCanvas";
@@ -56,7 +57,7 @@ export function GraphExplorer() {
 
   return (
     <div className="grid">
-      <div><h1>Graph Explorer</h1><div className="muted">Data source: {SOURCE_LABELS[source]}</div></div>
+      <PageHeader title="Graph Explorer" subtitle={`Linked accounts, devices and merchants · Data source: ${SOURCE_LABELS[source]}`} />
       <div className="split">
         <div className="grid">
           <section className="panel" aria-label="Flagged clusters">

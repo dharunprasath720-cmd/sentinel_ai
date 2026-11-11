@@ -1,13 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { LEVELS, type ModelsSummary, type Overview as OverviewData, type TxnListItem } from "../api/types";
+import {
+  Bar, BarChart, CartesianGrid, Cell, LabelList, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+} from "recharts";
+import { LEVELS, type Level, type ModelsSummary, type Overview as OverviewData, type TxnListItem } from "../api/types";
 import { useSession } from "../auth/session";
+import { CountUp } from "../components/CountUp";
 import { MetricTile } from "../components/MetricTile";
+import { PageHeader } from "../components/PageHeader";
 import { RiskBadge } from "../components/RiskBadge";
 import { EmptyState, ErrorState, Spinner } from "../components/states";
 import { fmt3, fmtInt, fmtMoney, fmtTime } from "../format";
 import { SOURCE_LABELS, useSource } from "../source";
+
+const LEVEL_COLOUR: Record<Level, string> = { LOW: "#3ecf8e", MODERATE: "#f5b942", HIGH: "#ff8a4c", CRITICAL: "#ff5d6c" };
+type Scale = "log" | "linear";
 
 function ModelPanel() {
   const { client } = useSession();
@@ -33,23 +41,25 @@ function ModelPanel() {
   );
 }
 
-function RecentHighRisk() {
+function RecentTransactions({ level }: { level: Level | null }) {
   const { client } = useSession();
   const { source } = useSource();
   const q = useQuery({
-    queryKey: ["recent-high-plus", source],
+    queryKey: ["recent-transactions", source, level],
     queryFn: async () => {
+      if (level) return client.get<TxnListItem[]>("/transactions", { source, level, limit: 10 });
       const [crit, high] = await Promise.all(
-        (["CRITICAL", "HIGH"] as const).map((level) =>
-          client.get<TxnListItem[]>("/transactions", { source, level, limit: 10 })));
+        (["CRITICAL", "HIGH"] as const).map((l) =>
+          client.get<TxnListItem[]>("/transactions", { source, level: l, limit: 10 })));
       return [...crit, ...high].sort((a, b) => b.ts.localeCompare(a.ts)).slice(0, 10);
     },
   });
+  const title = level ? `Recent ${level} transactions` : "Recent HIGH and CRITICAL transactions";
   return (
-    <section className="panel" aria-label="Recent high-risk transactions">
-      <h2>Recent HIGH and CRITICAL transactions</h2>
+    <section className="panel" aria-label="Recent transactions">
+      <h2>{title}</h2>
       {q.isPending ? <Spinner /> : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> :
-        q.data.length === 0 ? <EmptyState title="Nothing rated HIGH or CRITICAL for this data source" /> : (
+        q.data.length === 0 ? <EmptyState title={level ? `Nothing rated ${level} for this data source` : "Nothing rated HIGH or CRITICAL for this data source"} /> : (
           <table>
             <thead><tr><th>Transaction</th><th>Time</th><th>Amount</th><th>Level</th></tr></thead>
             <tbody>
@@ -69,22 +79,25 @@ function RecentHighRisk() {
 export function Overview() {
   const { client } = useSession();
   const { source } = useSource();
+  const [scale, setScale] = useState<Scale>("log");
+  const [level, setLevel] = useState<Level | null>(null);
   const q = useQuery({
     queryKey: ["overview", source],
     queryFn: () => client.get<OverviewData>("/metrics/overview", { source }),
   });
+  const toggleLevel = (l: Level) => setLevel((cur) => (cur === l ? null : l));
 
   return (
     <div className="grid">
-      <div><h1>Overview</h1><div className="muted">Data source: {SOURCE_LABELS[source]}</div></div>
+      <PageHeader title="Overview" subtitle={`Portfolio health at a glance · Data source: ${SOURCE_LABELS[source]}`} />
       {q.isPending ? <Spinner /> : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : (
         <>
           <div className="grid grid-5">
-            <MetricTile label="Transactions" value={fmtInt(q.data.transactions.total)} />
-            <MetricTile label="Open alerts" value={fmtInt(q.data.open_alerts)} />
-            <MetricTile label="Open cases" value={fmtInt(q.data.open_cases)} />
-            <MetricTile label="Flagged clusters" value={fmtInt(q.data.flagged_clusters)} />
-            <MetricTile label="Suspicious value" value={fmtMoney(q.data.suspicious_value)}
+            <MetricTile label="Transactions" value={<CountUp value={q.data.transactions.total} format={fmtInt} />} />
+            <MetricTile label="Open alerts" value={<CountUp value={q.data.open_alerts} format={fmtInt} />} />
+            <MetricTile label="Open cases" value={<CountUp value={q.data.open_cases} format={fmtInt} />} />
+            <MetricTile label="Flagged clusters" value={<CountUp value={q.data.flagged_clusters} format={fmtInt} />} />
+            <MetricTile label="Suspicious value" value={<CountUp value={q.data.suspicious_value} format={fmtMoney} />}
               hint="Amounts of HIGH and CRITICAL transactions. Suspicious, not confirmed fraud." />
           </div>
           {q.data.transactions.total === 0 ? (
@@ -93,33 +106,61 @@ export function Overview() {
           ) : (
             <div className="grid grid-2">
               <section className="panel" aria-label="Risk level distribution">
-                <h2>Risk level distribution</h2>
-                <div className="row muted">
-                  {LEVELS.map((l) => <span key={l}>{l} {fmtInt(q.data.transactions.by_level[l])}</span>)}
+                <div className="row spread">
+                  <h2>Risk level distribution</h2>
+                  <div className="row" role="group" aria-label="Chart scale">
+                    {(["log", "linear"] as const).map((s) => (
+                      <button key={s} className={`btn btn-small${scale === s ? " btn-active" : ""}`}
+                              aria-label={s === "log" ? "Log scale" : "Linear scale"} aria-pressed={scale === s}
+                              onClick={() => setScale(s)}>{s === "log" ? "Log" : "Linear"}</button>
+                    ))}
+                  </div>
                 </div>
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={LEVELS.map((l) => ({ level: l, count: q.data.transactions.by_level[l] }))}>
+                <div className="row" role="group" aria-label="Filter by risk level">
+                  {LEVELS.map((l) => (
+                    <button key={l} className={`level-chip${level === l ? " selected" : ""}`} aria-pressed={level === l}
+                            style={{ borderColor: LEVEL_COLOUR[l] }} onClick={() => toggleLevel(l)}>
+                      <span className="swatch" style={{ background: LEVEL_COLOUR[l] }} aria-hidden /> {l} {fmtInt(q.data.transactions.by_level[l])}
+                    </button>
+                  ))}
+                </div>
+                <div className="muted small">
+                  {scale === "log" ? "Log scale keeps small groups visible next to LOW. " : ""}Click a level to list its recent transactions.
+                </div>
+                <ResponsiveContainer width="100%" height={230}>
+                  <BarChart data={LEVELS.map((l) => ({ level: l, count: q.data.transactions.by_level[l] || undefined }))}
+                            margin={{ top: 18 }}>
                     <CartesianGrid stroke="#243252" /><XAxis dataKey="level" stroke="#94a3c0" />
-                    <YAxis stroke="#94a3c0" /><Tooltip /><Bar dataKey="count" fill="#6aa5ff" />
+                    <YAxis stroke="#94a3c0" scale={scale} domain={scale === "log" ? [1, "dataMax"] : [0, "dataMax"]} allowDataOverflow />
+                    <Tooltip />
+                    <Bar dataKey="count" cursor="pointer" onClick={(d: unknown) => toggleLevel((d as { level: Level }).level)}>
+                      {LEVELS.map((l) => <Cell key={l} fill={LEVEL_COLOUR[l]} fillOpacity={level && level !== l ? 0.3 : 1} />)}
+                      <LabelList dataKey="count" position="top" fill="#e8edf7" formatter={(v: unknown) => fmtInt(Number(v))} />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </section>
               <section className="panel" aria-label="Daily volume">
                 <h2>Daily volume and HIGH+ count</h2>
+                <ul className="legend" aria-label="Daily chart legend">
+                  <li><span className="swatch" style={{ background: "#6aa5ff" }} aria-hidden /> All transactions</li>
+                  <li><span className="swatch" style={{ background: "#ff5d6c" }} aria-hidden /> HIGH + CRITICAL</li>
+                </ul>
                 <ResponsiveContainer width="100%" height={250}>
                   <LineChart data={q.data.daily}>
                     <CartesianGrid stroke="#243252" /><XAxis dataKey="date" stroke="#94a3c0" />
                     <YAxis stroke="#94a3c0" /><Tooltip />
-                    <Line dataKey="transactions" stroke="#6aa5ff" dot={false} />
-                    <Line dataKey="high_plus" stroke="#ff5d6c" dot={false} />
+                    <Line dataKey="transactions" name="All transactions" stroke="#6aa5ff" dot={false} />
+                    <Line dataKey="high_plus" name="HIGH + CRITICAL" stroke="#ff5d6c" dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
+                <div className="muted small">The last day may be partial, so its drop is not a real fall in volume.</div>
               </section>
             </div>
           )}
         </>
       )}
-      <div className="grid grid-2"><ModelPanel /><RecentHighRisk /></div>
+      <div className="grid grid-2"><ModelPanel /><RecentTransactions level={level} /></div>
     </div>
   );
 }
