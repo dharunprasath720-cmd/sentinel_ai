@@ -110,12 +110,16 @@ class Simulator:
     def running(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
 
-    def start(self, frame, speed: float, limit: int) -> None:
+    def start(self, frame, speed: float, limit: int, offset: int = 0) -> None:
+        """Replay `limit` rows beginning at row `offset`. Rows before the offset are skipped, not scored, so the
+        scorer has no history for them; a bad offset is rejected before anything starts."""
         if self.running:
             raise RuntimeError("simulator is already running")
+        if offset < 0 or offset >= len(frame):
+            raise ValueError(f"offset {offset} is beyond the {len(frame)} replay events (valid: 0 to {len(frame) - 1})")
         self._stop.clear()
         self.sent = self.errors = 0
-        rows = frame.head(limit).to_dict("records")
+        rows = frame.iloc[offset:offset + limit].to_dict("records")
         self._thread = threading.Thread(target=self._run, args=(rows, speed), daemon=True)
         self._thread.start()
 

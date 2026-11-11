@@ -239,3 +239,43 @@ def test_metrics_are_per_business(env):
     assert mine["processed"] == 1 and mine["alerts"] == 1
     assert other["processed"] == 0 and other["alerts"] == 0 and other["dropped"] == 0
     assert other["simulator"] == {"running": False, "sent": 0, "errors": 0}
+
+def test_simulator_can_start_part_way_through_the_stream(env):
+    client, app, engine, scorer, _ = env
+    ana = auth(client, "ana")
+    r = client.post("/simulate/start", json={"speed": 500, "limit": 100, "offset": 8}, headers=ana)
+    assert r.status_code == 200 and r.json()["offset"] == 8
+    assert wait_until(lambda: not client.get("/metrics/live", headers=ana).json()["simulator"]["running"])
+    with session_scope(engine) as s:
+        # only SIM-8 to SIM-11 were replayed: the skipped events are not scored or stored
+        assert {t.external_id for t in s.query(Transaction)} == {"SIM-8", "SIM-9", "SIM-10", "SIM-11"}
+    assert scorer.seen == ["SIM-8", "SIM-9", "SIM-10", "SIM-11"]
+
+
+def test_offset_defaults_to_zero_and_limit_counts_from_the_offset(env):
+    client, app, engine, scorer, _ = env
+    ana = auth(client, "ana")
+    r = client.post("/simulate/start", json={"speed": 500, "limit": 3}, headers=ana)
+    assert r.json()["offset"] == 0
+    assert wait_until(lambda: not client.get("/metrics/live", headers=ana).json()["simulator"]["running"])
+    assert scorer.seen == ["SIM-0", "SIM-1", "SIM-2"]
+    client.post("/simulate/start", json={"speed": 500, "limit": 2, "offset": 5}, headers=ana)
+    assert wait_until(lambda: scorer.seen[-2:] == ["SIM-5", "SIM-6"])
+
+
+def test_offset_is_validated(env):
+    client, *_ = env
+    ana = auth(client, "ana")
+    assert client.post("/simulate/start", json={"speed": 100, "limit": 5, "offset": -1}, headers=ana).status_code == 422
+    assert client.post("/simulate/start", json={"speed": 100, "limit": 5, "offset": 1.5}, headers=ana).status_code == 422
+    beyond = client.post("/simulate/start", json={"speed": 100, "limit": 5, "offset": 12}, headers=ana)  # 12 events: 0 to 11
+    assert beyond.status_code == 422 and "beyond" in beyond.json()["detail"]
+    assert client.post("/simulate/start", json={"speed": 500, "limit": 5, "offset": 11}, headers=ana).status_code == 200  # the last event
+
+
+def test_a_rejected_offset_does_not_start_or_block_the_simulator(env):
+    client, *_ = env
+    ana = auth(client, "ana")
+    assert client.post("/simulate/start", json={"speed": 100, "limit": 5, "offset": 99}, headers=ana).status_code == 422
+    assert not client.get("/metrics/live", headers=ana).json()["simulator"]["running"]
+    assert client.post("/simulate/start", json={"speed": 500, "limit": 2}, headers=ana).status_code == 200  # not a 409

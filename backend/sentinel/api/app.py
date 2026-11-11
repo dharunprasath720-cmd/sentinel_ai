@@ -81,6 +81,7 @@ class ChatIn(BaseModel):
 class SimulateIn(BaseModel):
     speed: float = Field(gt=0, le=1000, description="events per second")
     limit: int = Field(ge=1, le=100000)
+    offset: int = Field(0, ge=0, description="start the replay at this event (0 = from the beginning)")
 
 
 def _alert_dict(a: Alert) -> dict:
@@ -307,10 +308,10 @@ def create_app(engine: Engine, secret: str | None = None,
         if context.demo_frame is None:
             raise HTTPException(status_code=503, detail="no demo data is loaded")
         try:
-            simulator.start(context.demo_frame, body.speed, body.limit)
+            simulator.start(context.demo_frame, body.speed, body.limit, body.offset)
         except RuntimeError as exc:
             raise Conflict(str(exc)) from exc
-        return {"started": True, "speed": body.speed, "limit": body.limit}
+        return {"started": True, "speed": body.speed, "limit": body.limit, "offset": body.offset}
 
     @app.post("/simulate/stop")
     def simulate_stop(user: User = Depends(current_user)):
