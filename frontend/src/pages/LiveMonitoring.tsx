@@ -8,7 +8,7 @@ import { useSession } from "../auth/session";
 import { MetricTile } from "../components/MetricTile";
 import { RiskBadge } from "../components/RiskBadge";
 import { EmptyState, ErrorState, Spinner } from "../components/states";
-import { fmtInt, fmtMoney, fmtTime } from "../format";
+import { fmtInt, fmtMoney, fmtMs, fmtTime } from "../format";
 import { useLiveStream, type StreamState } from "../live/useLiveStream";
 import { SOURCE_LABELS, useSource } from "../source";
 
@@ -109,8 +109,8 @@ export function LiveMonitoring({ streamFetch }: { streamFetch?: typeof fetch }) 
         <div className="grid grid-5">
           <MetricTile label="Processed" value={m ? fmtInt(m.processed) : "—"} />
           <MetricTile label="Alerts" value={m ? fmtInt(m.alerts) : "—"} />
-          <MetricTile label="Latency p50" value={m ? `${m.p50_ms.toFixed(1)} ms` : "—"} />
-          <MetricTile label="Latency p95" value={m ? `${m.p95_ms.toFixed(1)} ms` : "—"} />
+          <MetricTile label="Latency p50" value={fmtMs(m?.p50_ms)} />
+          <MetricTile label="Latency p95" value={fmtMs(m?.p95_ms)} />
           <MetricTile label="Dropped events" value={m ? fmtInt(m.dropped) : "—"} />
           <MetricTile label="Replay" value={m ? (m.simulator.running ? "Replay running" : "Replay idle") : "—"}
             hint={m ? `${fmtInt(m.simulator.sent)} sent · ${fmtInt(m.simulator.errors)} errors` : undefined} />

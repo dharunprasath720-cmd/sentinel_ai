@@ -17,3 +17,6 @@ export const ACTION_LABELS: Record<string, string> = {
   ALLOW: "Allow", MONITOR: "Monitor", REVIEW: "Review", VERIFY: "Verify", HOLD_RECOMMENDED: "Hold recommended",
 };
 export const actionLabel = (a: string) => ACTION_LABELS[a] ?? a;
+
+/** Milliseconds with one decimal, or a dash when there is no measurement yet. */
+export const fmtMs = (n: number | null | undefined) => (n == null || Number.isNaN(n) ? "—" : `${n.toFixed(1)} ms`);

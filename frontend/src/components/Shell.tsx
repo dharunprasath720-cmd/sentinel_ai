@@ -1,4 +1,5 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { useSession } from "../auth/session";
 import { SOURCE_LABELS, useSource } from "../source";
 import type { Source } from "../api/types";
@@ -27,6 +28,7 @@ export function SourceSelector() {
 
 export function Shell() {
   const { username, role, logout } = useSession();
+  const location = useLocation();
   return (
     <div className="app">
       <header className="header">
@@ -42,7 +44,7 @@ export function Shell() {
         <span className="pill">{username} · {role}</span>
         <button className="btn" onClick={logout}>Sign out</button>
       </header>
-      <main className="page"><Outlet /></main>
+      <main className="page"><ErrorBoundary key={location.key}><Outlet /></ErrorBoundary></main>
     </div>
   );
 }

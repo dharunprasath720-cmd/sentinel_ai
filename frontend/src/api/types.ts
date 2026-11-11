@@ -74,7 +74,9 @@ export interface LiveEvent {
   cluster_id: string | null; alert: boolean; late: boolean; latency_ms: number; emitted_at: number;
 }
 export interface LiveMetrics {
-  processed: number; alerts: number; p50_ms: number; p95_ms: number; max_ms: number; dropped: number;
+  processed: number; alerts: number; dropped: number;
+  /** null until the first event has been scored */
+  p50_ms: number | null; p95_ms: number | null; max_ms: number | null;
   simulator: { running: boolean; sent: number; errors: number };
 }
 

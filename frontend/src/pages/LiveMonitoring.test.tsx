@@ -120,6 +120,15 @@ describe("LiveMonitoring page", () => {
     expect(screen.getByText(/replay running/i)).toBeInTheDocument();
   });
 
+  it("shows dashes, not a crash, before any event has been scored (latency is null)", async () => {
+    setup({ routes: { "GET /metrics/live": { processed: 0, alerts: 0, p50_ms: null, p95_ms: null, max_ms: null, dropped: 0,
+      simulator: { running: false, sent: 0, errors: 0 } } } });
+    expect(await screen.findByText("Latency p50")).toBeInTheDocument();
+    await screen.findByText("OLD-HIGH");
+    expect(document.body.textContent).not.toMatch(/null|NaN/);
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
+  });
+
   it("does not show live events from another data source", async () => {
     const { s } = setup();
     await screen.findByText("OLD-HIGH");
