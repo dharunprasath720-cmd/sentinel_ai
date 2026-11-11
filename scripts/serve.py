@@ -21,6 +21,7 @@ import uvicorn  # noqa: E402
 
 from sentinel.agent.llm import AnthropicLLM  # noqa: E402
 from sentinel.api.app import create_app  # noqa: E402
+from sentinel.api.frontend import mount_frontend  # noqa: E402
 from sentinel.demo import build_demo, load_demo  # noqa: E402
 from sentinel.paypal.client import PayPalClient  # noqa: E402
 from sentinel.paypal.settings import PayPalSettings  # noqa: E402
@@ -64,7 +65,12 @@ def main() -> None:
     ctx.llm = AnthropicLLM.from_env()
     print("Claude agent:", "configured" if ctx.llm else "not configured (reports are deterministic, chat is off)")
     print(f"Demo logins are in {env_demo.name} (usernames ana / vic / adm). API docs: http://127.0.0.1:{args.port}/docs")
-    uvicorn.run(create_app(engine, context=ctx), host="127.0.0.1", port=args.port)
+    app = create_app(engine, context=ctx)
+    if mount_frontend(app, ROOT / "frontend" / "dist"):
+        print(f"Dashboard: http://127.0.0.1:{args.port}/")
+    else:
+        print("Dashboard: not built (run `npm run build --prefix frontend`); the API still works")
+    uvicorn.run(app, host="127.0.0.1", port=args.port)
 
 
 if __name__ == "__main__":
