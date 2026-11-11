@@ -68,7 +68,7 @@ a browser, and `scripts/live_claude_check.py` runs one real investigation.
 **Tests:** `.venv\Scripts\python -m pytest` (407 tests, about 6 minutes on a slow laptop) and
 `npm test --prefix frontend -- --run` (117 tests).
 
-**Demo:** [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) is a four-minute walkthrough. It starts the replay at event 2290 so the planted ring appears within seconds.
+**Demo:** [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) is a four-minute walkthrough. It starts the replay at event 2290 so the planted ring appears within seconds. [demo-video/](demo-video/README.md) regenerates a captioned screen recording of it (headless Chromium, no narration).
 
 ## How it is built
 

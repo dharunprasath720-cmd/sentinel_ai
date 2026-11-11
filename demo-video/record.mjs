@@ -1,0 +1,323 @@
+// Scripted, captioned screen recording of the SENTINEL dashboard.
+//
+//   BASE=http://127.0.0.1:8001 DEMO_HOME=<folder with .env.demo> FFMPEG=<ffmpeg.exe> node record.mjs
+//
+// Drives the real app in headless Chromium, records video, burns captions in as a page overlay, and
+// then speeds up the dead waits (replay, AI report) and encodes an MP4. Nothing is narrated.
+// Passwords are read from DEMO_HOME/.env.demo at run time and typed into a masked field; they are never logged.
+import { chromium } from "playwright";
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+
+const BASE = process.env.BASE ?? "http://127.0.0.1:8001";
+const HOME = process.env.DEMO_HOME;
+const FFMPEG = process.env.FFMPEG;
+const OUT = path.resolve(process.env.OUT ?? "out");
+const FAST = process.env.FAST === "1"; // shorter dwell times, for debugging the script
+const RING_START = 2290;               // replay offset: just before the planted ring (stream position 2,299)
+const LEGIT_ID = "SYN0013668";         // legitimate but unusual purchase (stream position 2,671)
+
+if (!HOME || !FFMPEG) throw new Error("set DEMO_HOME (folder with .env.demo) and FFMPEG (path to ffmpeg)");
+const envText = fs.readFileSync(path.join(HOME, ".env.demo"), "utf8");
+const ANA_PASSWORD = envText.match(/^ANA_PASSWORD=(.+)$/m)?.[1]?.trim();
+if (!ANA_PASSWORD) throw new Error("ANA_PASSWORD not found in .env.demo");
+
+fs.rmSync(OUT, { recursive: true, force: true });
+fs.mkdirSync(path.join(OUT, "frames"), { recursive: true });
+
+const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
+const dwell = (ms) => (FAST ? Math.max(300, ms * 0.25) : ms);
+
+const browser = await chromium.launch({ headless: true });
+const context = await browser.newContext({
+  viewport: { width: 1280, height: 720 },
+  recordVideo: { dir: path.join(OUT, "raw"), size: { width: 1280, height: 720 } },
+});
+
+// Captions and a visible cursor live in the page so they are part of the recorded video.
+await context.addInitScript(() => {
+  const css = `
+    #__caption{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);max-width:72%;z-index:2147483647;
+      padding:10px 20px;border-radius:12px;background:rgba(6,10,22,.93);border:1px solid #6aa5ff;color:#f1f5ff;
+      font:600 22px/1.35 Georgia,'Times New Roman',serif;text-align:center;pointer-events:none;
+      box-shadow:0 10px 40px rgba(0,0,0,.5);transition:opacity .25s;opacity:0}
+    #__caption.on{opacity:1}
+    #__cursor{position:fixed;width:22px;height:22px;margin:-4px 0 0 -4px;border-radius:50%;z-index:2147483646;
+      background:rgba(255,200,60,.85);border:2px solid #fff;pointer-events:none;transition:transform .08s;left:-40px;top:-40px;
+      box-shadow:0 0 0 2px rgba(0,0,0,.4)}
+    #__cursor.down{transform:scale(.7);background:rgba(255,90,90,.9)}`;
+  const build = () => {
+    if (document.getElementById("__caption")) return;
+    const st = document.createElement("style"); st.textContent = css; document.documentElement.appendChild(st);
+    const c = document.createElement("div"); c.id = "__caption"; document.documentElement.appendChild(c);
+    const k = document.createElement("div"); k.id = "__cursor"; document.documentElement.appendChild(k);
+  };
+  document.addEventListener("DOMContentLoaded", build);
+  window.addEventListener("load", build);
+  window.addEventListener("mousemove", (e) => { build(); const k = document.getElementById("__cursor"); k.style.left = e.clientX + "px"; k.style.top = e.clientY + "px"; }, true);
+  window.addEventListener("mousedown", () => document.getElementById("__cursor")?.classList.add("down"), true);
+  window.addEventListener("mouseup", () => document.getElementById("__cursor")?.classList.remove("down"), true);
+  window.__caption = (text) => {
+    build(); const c = document.getElementById("__caption");
+    if (!text) { c.classList.remove("on"); return; }
+    c.textContent = text; c.classList.add("on");
+  };
+});
+
+const page = await context.newPage();
+const t0 = Date.now();
+const waits = []; // [startMs, endMs, speed] relative to the start of the video
+
+const caption = (text) => page.evaluate((t) => window.__caption && window.__caption(t), text);
+const say = async (text, ms) => { await caption(text); await page.waitForTimeout(dwell(ms)); };
+const shot = (name) => page.screenshot({ path: path.join(OUT, "frames", `${name}.png`) });
+async function fastForward(label, speed, fn) {
+  const start = Date.now() - t0;
+  try { return await fn(); } finally {
+    const end = Date.now() - t0;
+    if (end - start > 4000) waits.push([start, end, speed, label]);
+    log(`wait "${label}": ${((end - start) / 1000).toFixed(0)} s real time, x${speed}`);
+  }
+}
+async function click(locator) {
+  await locator.scrollIntoViewIfNeeded();
+  const box = await locator.boundingBox();
+  if (!box) throw new Error("no box to click");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: FAST ? 4 : 18 });
+  await page.waitForTimeout(dwell(250));
+  await locator.click();
+  await page.waitForTimeout(dwell(300));
+}
+const top = () => page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+const card = async (title, lines, ms) => {
+  await caption("");
+  const html = `<!doctype html><meta charset=utf-8><body style="margin:0;height:100vh;display:grid;place-items:center;
+    background:radial-gradient(circle at 70% 90%,#17305f,#0a1020 60%);color:#e8edf7;font-family:Georgia,serif;text-align:center">
+    <div style="max-width:900px;padding:40px"><div style="font-size:64px;letter-spacing:.14em;font-weight:700">${title}</div>
+    ${lines.map((l, i) => `<div style="margin-top:${i ? 18 : 26}px;font-size:${i ? 26 : 32}px;color:${i ? "#94a3c0" : "#6aa5ff"}">${l}</div>`).join("")}</div>`;
+  await page.goto("data:text/html;charset=utf-8," + encodeURIComponent(html));
+  await page.waitForTimeout(dwell(ms));
+};
+
+try {
+  // ---------------------------------------------------------------- title
+  await card("SENTINEL AI", ["Payment-fraud intelligence you can audit",
+    "Captioned demo. Synthetic data, PayPal Sandbox. No narration."], 5000);
+
+  // ---------------------------------------------------------------- sign in
+  log("scene: sign in");
+  await page.goto(BASE, { waitUntil: "domcontentloaded" });
+  await page.locator(".login-card").waitFor();
+  await say("Sign in as an analyst. Demo accounts are one click away; the password stays masked.", 3500);
+  await click(page.locator(".chip", { hasText: "ana" }));
+  await page.locator("#login-password").pressSequentially(ANA_PASSWORD, { delay: FAST ? 10 : 70 });
+  await shot("01-login");
+  await click(page.locator(".login-card button.btn-primary"));
+
+  // ---------------------------------------------------------------- overview
+  log("scene: overview");
+  await page.locator(".tile-value").first().waitFor({ timeout: 60000 });
+  await say("Overview: every payment is scored. These tiles count up from the live database.", 5500);
+  await shot("02-overview");
+  await page.locator('[aria-label="Risk level distribution"]').scrollIntoViewIfNeeded();
+  await say("Log scale keeps small HIGH and CRITICAL groups visible next to thousands of LOW payments.", 4500);
+  await click(page.locator(".level-chip", { hasText: "MODERATE" }));
+  await say("Click a risk level to list its recent transactions.", 3500);
+  await click(page.locator(".level-chip", { hasText: "MODERATE" }));
+  await click(page.getByRole("button", { name: "Linear scale" }));
+  await say("Linear scale shows the true imbalance: fraud is rare.", 3000);
+  await click(page.getByRole("button", { name: "Log scale" }));
+  await page.locator('[aria-label="Model quality"]').scrollIntoViewIfNeeded();
+  await say("Model quality, honestly: recall sits beside precision. It misses things, and the screen says so.", 6000);
+  await shot("03-model");
+  await top();
+
+  // ---------------------------------------------------------------- live monitoring
+  log("scene: live monitoring");
+  await click(page.locator(".nav a", { hasText: "Live Monitoring" }));
+  await say("Live Monitoring replays held-back events through the real scoring pipeline.", 3500);
+  await page.getByLabel(/speed/i).fill("1000");
+  await page.getByLabel(/limit/i).fill("400");
+  await page.getByLabel(/start at event/i).fill(String(RING_START));
+  await say(`Starting at event ${RING_START}, just before a planted ring of coordinated accounts.`, 3500);
+  await click(page.getByRole("button", { name: /start replay/i }));
+  await say("Scored events slide in. The first ring payments look ordinary on their own.", 7000);
+  await shot("04-live-early");
+
+  const firstHigh = await fastForward("waiting for the ring to be flagged", 6, async () => {
+    await caption("Several ring accounts now share a device, and their scores climb (replay sped up).");
+    await page.locator("tr.row-pulse td a").first().waitFor({ timeout: 240000 });
+    return page.locator("tr.row-pulse td a").first().innerText();
+  });
+  log("first HIGH+ ring transaction:", firstHigh);
+  await page.locator("tr.row-pulse").first().scrollIntoViewIfNeeded();
+  await say("Ring rows turn HIGH, pulse, and are recommended Review. Nothing is blocked automatically.", 7000);
+  await shot("05-live-high");
+
+  // The Live page keeps only the newest 200 rows, so grab a row from inside the flagged cluster the moment one appears.
+  const clusterRowId = () => page.evaluate(() => {
+    const r = [...document.querySelectorAll("tr.row-pulse")].find((tr) => tr.lastElementChild && tr.lastElementChild.textContent.trim() !== "—");
+    return r ? { id: r.querySelector("a")?.textContent ?? null, cluster: r.lastElementChild.textContent.trim() } : null;
+  });
+  await fastForward("waiting for the cluster to be flagged", 6, async () => {
+    await caption("Enough accounts now share the device for the cluster to be flagged (replay sped up).");
+    await page.waitForFunction(() => [...document.querySelectorAll("tr.row-pulse")].some((tr) => tr.lastElementChild && tr.lastElementChild.textContent.trim() !== "—"),
+      null, { timeout: 150000 }).catch(() => {});
+  });
+  const found = await clusterRowId();
+  const flaggedHigh = found?.id ?? null;
+  log("flagged-cluster row:", found);
+  if (found) {
+    await page.locator("tr.row-pulse", { has: page.locator(`a:text-is("${found.id}")`) }).first().scrollIntoViewIfNeeded();
+    await say("Cluster flagged: the Cluster column now names it. This is the shared-device pattern, caught as it forms.", 6500);
+    await shot("05b-live-cluster");
+  }
+
+  const legitRow = page.locator("tr", { has: page.locator(`a:text-is("${LEGIT_ID}")`) });
+  let sawLegit = true;
+  await fastForward("waiting for the legitimate-but-unusual purchase", 8, async () => {
+    await caption("The replay continues (sped up).");
+    await legitRow.first().waitFor({ timeout: 300000 }).catch(() => { sawLegit = false; });
+  });
+  if (sawLegit) {
+    await legitRow.first().scrollIntoViewIfNeeded();
+    const text = (await legitRow.first().innerText()).replace(/\s+/g, " ");
+    log("legit row:", text);
+    await say(`A legitimate but unusual purchase arrives: ${/MODERATE/.test(text) ? "rated MODERATE, action Monitor" : "rated per the row shown"}. Unusual is not fraud.`, 6500);
+    await shot("06-live-legit");
+  } else log("legit purchase did not arrive in time; skipping its caption");
+  await page.getByRole("button", { name: /stop replay/i }).click().catch(() => {});
+  const subject = flaggedHigh ?? firstHigh;
+  log("investigation subject:", subject, flaggedHigh ? "(in a flagged cluster)" : "(no flagged-cluster row seen; using the first HIGH row)");
+
+  // ---------------------------------------------------------------- graph
+  log("scene: graph");
+  await top();
+  await click(page.locator(".nav a", { hasText: "Graph Explorer" }));
+  await say("Graph Explorer: accounts, devices and merchants. Flagged clusters are listed, newest first.", 4000);
+  const newest = page.locator('[aria-label="Flagged clusters"] button').first();
+  log("newest flagged cluster:", (await newest.innerText()).replace(/\s+/g, " "));
+  await click(newest);
+  await page.locator(".react-flow__node").first().waitFor({ timeout: 60000 });
+  log("graph nodes drawn:", await page.locator(".react-flow__node").count());
+  await page.locator('[aria-label="Graph canvas"]').scrollIntoViewIfNeeded();
+  await say("Border colour shows risk, and every node also says its level in words. Edges carry the transaction count.", 6500);
+  await shot("07-graph");
+  await click(page.locator(".react-flow__node", { hasText: "▲ account" }).first());
+  await say("Click an account to pull in its neighbours. The explorer caps at 200 nodes and says when it cuts.", 6500);
+  await shot("08-graph-expanded");
+
+  // ---------------------------------------------------------------- investigation
+  log("scene: investigation");
+  await top();
+  await page.keyboard.press("Control+k");
+  await say("Ctrl+K jumps anywhere. Paste a transaction id to open its investigation.", 3000);
+  await page.getByRole("combobox", { name: /search pages/i }).pressSequentially(subject, { delay: FAST ? 10 : 90 });
+  await page.waitForTimeout(dwell(600));
+  await page.keyboard.press("Enter");
+  await page.getByRole("heading", { name: `Transaction ${subject}` }).waitFor({ timeout: 60000 });
+  await page.locator('section[aria-label="Risk assessment"]').waitFor({ timeout: 60000 });
+  await say("Risk factors, behaviour reasons, and the model's own explanation (SHAP) are all here.", 5500);
+  await page.locator('section[aria-label="Model explanation"]').scrollIntoViewIfNeeded();
+  await say("Each bar is a feature's contribution to the model's score. Contributions describe the model, not causes of fraud.", 6500);
+  const riskText = (await page.locator("section[aria-label=\"Risk assessment\"]").innerText()).replace(/s+/g, " ");
+  const recommendedHold = /Hold recommended/i.test(riskText);
+  log("risk panel for the subject:", riskText.slice(0, 120));
+  await shot("09-investigation");
+  await page.locator('section[aria-label="Related accounts"]').scrollIntoViewIfNeeded();
+  await say("Related accounts share a device or a merchant. That is a relationship to examine, not evidence of wrongdoing.", 6000);
+
+  await top();
+  await click(page.locator(`input[aria-label="Select ${subject}"]`));
+  await click(page.getByRole("button", { name: /open case from selected/i }));
+  await page.locator('section[aria-label="Case"]').waitFor({ timeout: 30000 });
+  await say("Alerts become cases. Analysts add notes and decide.", 3500);
+  await page.getByLabel(/new note/i).fill("Ring pattern: several accounts, one device, same merchants. Needs review.");
+  await click(page.getByRole("button", { name: /add note/i }));
+  await page.getByLabel(/action to approve/i).selectOption("HOLD_RECOMMENDED");
+  await click(page.getByRole("button", { name: /approve action/i }));
+  await say(recommendedHold
+    ? "The system recommended a hold. The analyst approves it, and even then nothing is blocked automatically."
+    : "The system recommended Review. Recording a hold is the analyst's own call, and it blocks nothing.", 5500);
+  await shot("10-confirm");
+  await click(page.getByRole("dialog").getByRole("button", { name: "Confirm" }));
+  await page.waitForTimeout(dwell(1500));
+  await shot("11-case");
+
+  // AI report (real Claude call)
+  const reportBtn = page.getByRole("button", { name: /generate ai report/i });
+  await click(reportBtn);
+  await fastForward("Claude writing the report", 8, async () => {
+    await caption("Claude investigates through read-only tools. About a minute in real time (sped up).");
+    await page.locator('section[aria-label="Investigation report"]').waitFor({ timeout: 240000 });
+  });
+  await page.locator('section[aria-label="Investigation report"]').scrollIntoViewIfNeeded();
+  await say("Every claim cites an evidence id the tools returned. It says suspicious, never fraud confirmed.", 7000);
+  await shot("12-report");
+  await page.evaluate(() => document.querySelector('section[aria-label="Investigation report"]')?.scrollBy?.(0, 0));
+  await page.evaluate(() => window.scrollBy({ top: 420, behavior: "instant" }));
+  await say("It also lists the contradictory evidence, the limits of its confidence, and what is missing.", 6500);
+  await shot("13-report-limits");
+
+  // ---------------------------------------------------------------- the innocent purchase
+  if (sawLegit) {
+    log("scene: legitimate purchase");
+    await top();
+    await page.keyboard.press("Control+k");
+    await page.getByRole("combobox", { name: /search pages/i }).pressSequentially(LEGIT_ID, { delay: FAST ? 10 : 90 });
+    await page.waitForTimeout(dwell(500));
+    await page.keyboard.press("Enter");
+    // wait for THIS transaction's page: the previous investigation's panel is still on screen until it loads
+    await page.getByRole("heading", { name: `Transaction ${LEGIT_ID}` }).waitFor({ timeout: 60000 });
+    await page.locator('section[aria-label="Risk assessment"]').waitFor({ timeout: 60000 });
+    const risk = (await page.locator('section[aria-label="Risk assessment"]').innerText()).replace(/\s+/g, " ");
+    log("legit risk panel:", risk.slice(0, 160));
+    const monitored = /MODERATE/.test(risk) && /Monitor/.test(risk);
+    await say(monitored
+      ? "The legitimate purchase: unusual for this account, rated MODERATE with the action Monitor. Flagged for attention, not called fraud."
+      : "The legitimate purchase, shown exactly as scored.", 7000);
+    await shot("14-legit");
+  }
+
+  // ---------------------------------------------------------------- honest closing cards
+  await card("PayPal Sandbox", ["A real signed payment webhook was verified in testing",
+    "One capture, one webhook. Refunds exist in code but were never run. Not re-run in this recording."], 7000);
+  await card("SENTINEL AI", ["Deterministic scoring. An AI that must show its evidence. A human who decides.",
+    "About a fifth of planted fraud is missed. The data is synthetic. PayPal is Sandbox only."], 8000);
+} catch (err) {
+  log("FAILED:", err.message);
+  await shot("zz-failure").catch(() => {});
+  await context.close();
+  await browser.close();
+  process.exit(1);
+}
+
+const videoPath = await page.video().path();
+await context.close();
+await browser.close();
+const raw = path.join(OUT, "demo-raw.webm");
+fs.renameSync(videoPath, raw);
+fs.writeFileSync(path.join(OUT, "waits.json"), JSON.stringify(waits, null, 2));
+log("raw video:", raw, "| fast-forward segments:", waits.length);
+
+// ---------------------------------------------------------------- speed up the waits, encode MP4
+const probe = spawnSync(FFMPEG, ["-i", raw], { encoding: "utf8" });
+const dur = probe.stderr.match(/Duration: (\d+):(\d+):([\d.]+)/);
+const total = dur ? (+dur[1] * 3600 + +dur[2] * 60 + parseFloat(dur[3])) : null;
+if (!total) throw new Error("could not read the video duration");
+const segs = []; let cursor = 0;
+for (const [s, e, speed] of waits.sort((a, b) => a[0] - b[0])) {
+  const a = Math.max(cursor, s / 1000), b = Math.min(total, e / 1000);
+  if (a > cursor) segs.push([cursor, a, 1]);
+  if (b > a) segs.push([a, b, speed]);
+  cursor = Math.max(cursor, b);
+}
+if (cursor < total) segs.push([cursor, total, 1]);
+const filter = segs.map(([a, b, sp], i) => `[0:v]trim=start=${a.toFixed(3)}:end=${b.toFixed(3)},setpts=(PTS-STARTPTS)/${sp}[v${i}]`).join(";")
+  + ";" + segs.map((_, i) => `[v${i}]`).join("") + `concat=n=${segs.length}:v=1:a=0[out]`;
+const mp4 = path.join(OUT, "sentinel-demo.mp4");
+const enc = spawnSync(FFMPEG, ["-y", "-i", raw, "-filter_complex", filter, "-map", "[out]", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+  "-crf", "20", "-preset", "medium", "-r", "30", "-movflags", "+faststart", mp4], { encoding: "utf8" });
+if (enc.status !== 0) { console.error(enc.stderr.slice(-1500)); throw new Error("ffmpeg failed"); }
+log("MP4:", mp4);

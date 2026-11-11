@@ -1,0 +1,10 @@
+{
+  "name": "sentinel-demo-video",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Scripted, captioned screen recording of the SENTINEL dashboard (Playwright). Not part of the app.",
+  "dependencies": {
+    "playwright": "1.64.1"
+  }
+}
