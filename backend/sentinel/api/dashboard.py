@@ -52,8 +52,9 @@ def register_dashboard(app: FastAPI, get_session, current_user, context: AppCont
                 "explanation_unavailable": unavailable, "related": related}
 
     @app.get("/cases")
-    def cases(session: Session = Depends(get_session), user: User = Depends(current_user)):
-        return queries.list_cases(session, user.business_id)
+    def cases(source: Source | None = None, session: Session = Depends(get_session),
+              user: User = Depends(current_user)):
+        return queries.list_cases(session, user.business_id, source)
 
     @app.get("/graph/clusters")
     def graph_clusters(source: Source = "synthetic", session: Session = Depends(get_session),

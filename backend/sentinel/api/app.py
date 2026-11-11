@@ -26,6 +26,8 @@ from sentinel.agent.tools import ToolBox
 from sentinel.cases import services
 from sentinel.cases.orm import Alert, Case, CaseAlert, CaseNote, RiskAssessmentRow, User
 from sentinel.api.dashboard import register_dashboard
+from sentinel.dashboard import queries
+from sentinel.dashboard.queries import Source
 from sentinel.context import AppContext
 from sentinel.db import session_scope
 from sentinel.live.bus import EventBus
@@ -166,9 +168,11 @@ def create_app(engine: Engine, secret: str | None = None,
         return {"access_token": create_token(user, secret), "token_type": "bearer", "role": user.role}
 
     @app.get("/alerts")
-    def alerts(status: str | None = None, session: Session = Depends(get_session),
-               user: User = Depends(current_user)):
-        return [_alert_dict(a) for a in services.list_alerts(session, user, status)]
+    def alerts(status: str | None = None, source: Source | None = None,
+               session: Session = Depends(get_session), user: User = Depends(current_user)):
+        rows = (services.list_alerts(session, user, status) if source is None
+                else queries.alerts_in_source(session, user.business_id, status, source))
+        return [_alert_dict(a) for a in rows]
 
     @app.post("/cases")
     def open_case(body: CaseIn, session: Session = Depends(get_session),

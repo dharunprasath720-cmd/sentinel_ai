@@ -274,3 +274,25 @@ def test_graph_scope_and_auth(world):
     assert client.get(f"/graph?account={acct}").status_code == 401
     assert client.get(f"/graph?account={acct}", headers=auth(client, "bob")).status_code == 404
     assert client.get("/graph/clusters", headers=auth(client, "bob")).json() == []
+
+
+# ----------------------------------------------------------------------------- source-scoped alerts and cases
+def test_alerts_can_be_filtered_by_source(world):
+    client = make(world)
+    ana = auth(client, "ana")
+    everything = client.get("/alerts?status=open", headers=ana).json()
+    synthetic = client.get("/alerts?status=open&source=synthetic", headers=ana).json()
+    assert everything and synthetic == everything  # the demo world is all synthetic
+    assert client.get("/alerts?source=paypal_sandbox", headers=ana).json() == []
+    assert client.get("/alerts?source=bogus", headers=ana).status_code == 422
+    assert client.get("/alerts?source=synthetic", headers=auth(client, "bob")).json() == []  # business scoped
+
+
+def test_cases_can_be_filtered_by_source(world):
+    client = make(world)
+    ana = auth(client, "ana")
+    cid = open_case_via_api(client, ana, 1)
+    assert cid in [c["id"] for c in client.get("/cases?source=synthetic", headers=ana).json()]
+    assert client.get("/cases?source=paypal_sandbox", headers=ana).json() == []
+    assert client.get("/cases?source=bogus", headers=ana).status_code == 422
+    assert cid in [c["id"] for c in client.get("/cases", headers=ana).json()]  # unfiltered is unchanged

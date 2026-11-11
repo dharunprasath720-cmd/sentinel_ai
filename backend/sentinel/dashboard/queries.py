@@ -94,12 +94,36 @@ def recent_transactions(session: Session, business_id: str, source: str, level: 
     return out
 
 
-def list_cases(session: Session, business_id: str) -> list[dict]:
+def _case_ids_in_source(session: Session, business_id: str, source: str) -> set[int]:
+    return {cid for (cid,) in
+            session.query(Case.id)
+            .join(CaseAlert, CaseAlert.case_id == Case.id)
+            .join(Alert, Alert.id == CaseAlert.alert_id)
+            .join(Transaction, and_(Transaction.business_id == Alert.business_id,
+                                    Transaction.external_id == Alert.txn_external_id))
+            .filter(Case.business_id == business_id, Transaction.source == source)}
+
+
+def list_cases(session: Session, business_id: str, source: str | None = None) -> list[dict]:
+    """Newest first. With `source`, only cases holding at least one alert on that source's transactions."""
     counts = Counter(cid for (cid,) in session.query(CaseAlert.case_id)
                      .join(Case, Case.id == CaseAlert.case_id).filter(Case.business_id == business_id))
     cases = session.query(Case).filter_by(business_id=business_id).order_by(Case.id.desc()).all()
+    if source is not None:
+        keep = _case_ids_in_source(session, business_id, source)
+        cases = [c for c in cases if c.id in keep]
     return [{"id": c.id, "status": c.status, "approved_action": c.approved_action,
              "n_alerts": counts.get(c.id, 0), "created_at": c.created_at.isoformat()} for c in cases]
+
+
+def alerts_in_source(session: Session, business_id: str, status: str | None, source: str) -> list[Alert]:
+    q = (session.query(Alert)
+         .join(Transaction, and_(Transaction.business_id == Alert.business_id,
+                                 Transaction.external_id == Alert.txn_external_id))
+         .filter(Alert.business_id == business_id, Transaction.source == source))
+    if status:
+        q = q.filter(Alert.status == status)
+    return q.order_by(Alert.id).all()
 
 
 MAX_GRAPH_NODES = 200
