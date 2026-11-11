@@ -22,7 +22,8 @@ export interface SessionValue extends Stored {
   logout(): void;
   client: ApiClient;
 }
-const Ctx = createContext<SessionValue | null>(null);
+export const SessionContext = createContext<SessionValue | null>(null);
+const Ctx = SessionContext;
 
 export function SessionProvider({ children, fetchImpl }: { children: ReactNode; fetchImpl?: typeof fetch }) {
   const [state, setState] = useState<Stored>(load);
