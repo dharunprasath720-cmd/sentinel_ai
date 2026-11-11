@@ -20,7 +20,7 @@ export function SourceSelector() {
   const { source, setSource } = useSource();
   return (
     <label className="row muted">
-      Data source
+      <span className="source-label">Data source</span>
       <select aria-label="Data source" value={source} onChange={(e) => setSource(e.target.value as Source)}>
         {(Object.keys(SOURCE_LABELS) as Source[]).map((s) => (
           <option key={s} value={s}>{SOURCE_LABELS[s]}</option>

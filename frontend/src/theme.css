@@ -157,3 +157,18 @@ tr.row-pulse { animation: row-in 0.35s ease-out, row-pulse 1.6s ease-out; }
 @media (prefers-reduced-motion: reduce) {
   tr.row-new, tr.row-pulse, .login-glow { animation: none; }
 }
+
+/* ---------------------------------------------------------------- header fits one line on laptops */
+.nav { min-width: 0; flex: 1 1 auto; }
+.nav a { padding: 0.35rem 0.6rem; white-space: nowrap; }
+.header { flex-wrap: wrap; row-gap: 0.4rem; }
+@media (max-width: 1500px) { .search-btn .muted { display: none; } }
+@media (max-width: 1500px) { .header label.row.muted { font-size: 0.85rem; } }
+
+@media (max-width: 1500px) { .source-label { display: none; } .header { gap: 0.75rem; } }
+
+.nav { flex: 0 1 auto; }
+.search-btn { margin-left: auto; }
+
+.nav a { padding: 0.35rem 0.45rem; }
+.header select { max-width: 10.5rem; }
