@@ -64,6 +64,15 @@ async function openCase5() {
 }
 
 describe("Investigation workspace", () => {
+  it("asks for alerts and cases of the selected data source only", async () => {
+    const client = setup();
+    await screen.findByText("T-1");
+    expect(client.calls.find((c) => c.path === "/alerts")?.params).toEqual({ status: "open", source: "synthetic" });
+    await userEvent.click(screen.getByRole("tab", { name: /cases/i }));
+    await screen.findByText(/case #5/i);
+    expect(client.calls.find((c) => c.path === "/cases" && c.method === "GET")?.params).toEqual({ source: "synthetic" });
+  });
+
   it("lists alerts and opens a case from the selected ones", async () => {
     const client = setup();
     await screen.findByText("T-1");

@@ -5,6 +5,7 @@ import { ApiError } from "../api/client";
 import type { Alert, CaseSummary } from "../api/types";
 import { canAct } from "../auth/roles";
 import { useSession } from "../auth/session";
+import { useSource } from "../source";
 import { RiskBadge } from "../components/RiskBadge";
 import { EmptyState, ErrorState, Spinner } from "../components/states";
 import { CasePanel } from "./investigation/CasePanel";
@@ -12,6 +13,7 @@ import { TransactionPanel } from "./investigation/TransactionPanel";
 
 export function Investigation() {
   const { client, role } = useSession();
+  const { source } = useSource();
   const qc = useQueryClient();
   const { txnId } = useParams();
   const [tab, setTab] = useState<"alerts" | "cases">("alerts");
@@ -19,8 +21,8 @@ export function Investigation() {
   const [caseId, setCaseId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const alerts = useQuery({ queryKey: ["alerts", "open"], queryFn: () => client.get<Alert[]>("/alerts", { status: "open" }) });
-  const cases = useQuery({ queryKey: ["cases"], queryFn: () => client.get<CaseSummary[]>("/cases") });
+  const alerts = useQuery({ queryKey: ["alerts", "open", source], queryFn: () => client.get<Alert[]>("/alerts", { status: "open", source }) });
+  const cases = useQuery({ queryKey: ["cases", source], queryFn: () => client.get<CaseSummary[]>("/cases", { source }) });
 
   const open = useMutation({
     mutationFn: () => client.post<{ id: number }>("/cases", { alert_ids: selected }),
@@ -79,7 +81,7 @@ export function Investigation() {
                 ))}
               </ul>
             )}
-          <div className="muted">Alerts are listed across all data sources.</div>
+          <div className="muted">Alerts and cases shown are for the selected data source.</div>
         </section>
 
         <div className="grid">

@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
+import { CacheGuard } from "./auth/CacheGuard";
 import { Login } from "./auth/Login";
 import { SessionProvider, useSession } from "./auth/session";
 import { Shell } from "./components/Shell";
@@ -38,6 +39,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queries}>
       <SessionProvider>
+        <CacheGuard />
         <SourceProvider>
           <HashRouter><AppRoutes /></HashRouter>
         </SourceProvider>

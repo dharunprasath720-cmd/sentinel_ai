@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "../api/client";
 import type { ClusterSummary, GraphPayload } from "../api/types";
 import { useSession } from "../auth/session";
@@ -19,6 +19,7 @@ export function GraphExplorer() {
   const [expandError, setExpandError] = useState<string | null>(null);
   const [account, setAccount] = useState("");
   const [hours, setHours] = useState(24);
+  const generation = useRef(0); // bumped whenever the view changes, so a late expand cannot land in a newer view
 
   const clusters = useQuery({
     queryKey: ["clusters", source],
@@ -36,14 +37,18 @@ export function GraphExplorer() {
     () => (base.data ? extras.reduce(mergeGraphs, base.data) : null),
     [base.data, extras]);
 
-  function show(next: View) { setView(next); setExtras([]); setExpandError(null); }
+  function show(next: View) { generation.current += 1; setView(next); setExtras([]); setExpandError(null); }
+
+  // Never carry a graph (or accounts expanded into it) across a change of data source.
+  useEffect(() => { generation.current += 1; setView(null); setExtras([]); setExpandError(null); }, [source]);
 
   async function expand(accountId: string) {
     setExpandError(null);
+    const mine = generation.current;
     try {
       const more = await client.get<GraphPayload>("/graph", {
         account: accountId, hours: view?.kind === "account" ? view.hours : 24, source });
-      setExtras((e) => [...e, more]);
+      if (mine === generation.current) setExtras((e) => [...e, more]);
     } catch (err) {
       setExpandError(err instanceof ApiError ? err.detail : "Could not expand this account");
     }

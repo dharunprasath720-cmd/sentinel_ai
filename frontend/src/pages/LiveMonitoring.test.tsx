@@ -112,6 +112,11 @@ describe("LiveMonitoring page", () => {
     expect(screen.getByRole("button", { name: /resume/i })).toBeInTheDocument();
   });
 
+  it("labels the live counters as covering all data sources", async () => {
+    setup();
+    expect(await screen.findByText(/live counters \(all data sources\)/i)).toBeInTheDocument();
+  });
+
   it("shows the counters from /metrics/live", async () => {
     setup();
     expect(await screen.findByText("42")).toBeInTheDocument();

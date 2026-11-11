@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "../api/client";
 import type { ClusterSummary, GraphPayload } from "../api/types";
+import { SourceSelector } from "../components/Shell";
 import { fakeClient, renderPage } from "../test-utils";
 import { GraphExplorer } from "./GraphExplorer";
 
@@ -75,6 +76,16 @@ describe("Graph Explorer", () => {
     expect(screen.getByText("ACC_1")).toBeInTheDocument(); // still there after the merge
     await waitFor(() => expect(client.calls.filter((c) => c.path === "/graph").length).toBe(2));
     expect(client.calls[client.calls.length - 1].params).toMatchObject({ account: "ACC_1" });
+  });
+
+  it("changing the data source clears the graph, including accounts expanded earlier", async () => {
+    const client = fakeClient({ "GET /graph/clusters": clusters, "GET /graph": () => graph() });
+    renderPage(<><SourceSelector /><GraphExplorer /></>, { client });
+    await userEvent.click(await screen.findByRole("button", { name: /CL_1/ }));
+    expect(await screen.findByText("ACC_1")).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText("Data source"), "paysim");
+    expect(await screen.findByText(/choose a cluster or search/i)).toBeInTheDocument();
+    expect(screen.queryByText("ACC_1")).toBeNull();
   });
 
   it("an empty cluster list shows the empty state", async () => {

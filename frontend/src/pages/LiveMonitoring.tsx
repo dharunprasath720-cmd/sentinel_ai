@@ -105,6 +105,7 @@ export function LiveMonitoring({ streamFetch }: { streamFetch?: typeof fetch }) 
         {stream.paused ? <span className="muted">Paused: new events are not shown</span> : null}
       </div>
 
+      <h2>Live counters (all data sources)</h2>
       {metrics.isError ? <ErrorState error={metrics.error} /> : (
         <div className="grid grid-5">
           <MetricTile label="Processed" value={m ? fmtInt(m.processed) : "—"} />
