@@ -10,3 +10,7 @@ data/raw/
 .env.*
 !.env.example
 demo.db
+
+# frontend
+frontend/node_modules/
+frontend/dist/
