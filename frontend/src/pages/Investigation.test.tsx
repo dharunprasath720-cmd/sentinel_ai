@@ -33,7 +33,7 @@ const report = (over: Partial<InvestigationReport> = {}): InvestigationReport =>
   case_id: "CASE-T-1", transaction: {}, risk_assessment: {}, summary: "Suspicious and worth analyst review.",
   model_findings: [{ claim: "Model rates it HIGH", evidence_ids: ["txn:T-1"] }], behavioural_findings: [], graph_findings: [],
   supporting_evidence: [], contradictory_evidence: [{ claim: "Amount is small", evidence_ids: ["txn:T-1"] }],
-  missing_information: ["No outcome data"], recommended_next_steps: ["Review the device history"], confidence: "medium",
+  missing_information: ["No outcome data"], recommended_next_steps: ["Review the device history"], confidence: { level: "medium", limitations: ["Only one transaction was examined"] },
   classification: "suspicious", llm_narrative: true, evidence_ids: ["txn:T-1"], notes: [], ...over });
 const audit: AuditEntry[] = [
   { id: 1, ts: "2026-01-02T10:05:00+00:00", actor: "ana", action: "open_case", target: "case:5", before: null, after: null },
@@ -150,6 +150,8 @@ describe("Investigation workspace", () => {
     expect(screen.getAllByText("txn:T-1").length).toBeGreaterThan(0);
     expect(screen.getByText("Amount is small")).toBeInTheDocument();
     expect(screen.getByText("No outcome data")).toBeInTheDocument();
+    expect(screen.getByText(/confidence: medium/i)).toBeInTheDocument();
+    expect(screen.getByText("Only one transaction was examined")).toBeInTheDocument();
   });
 
   it("the report says when it is the deterministic fallback", async () => {

@@ -85,7 +85,8 @@ export interface InvestigationReport {
   case_id: string; transaction: Record<string, unknown>; risk_assessment: Record<string, unknown>;
   summary: string; model_findings: Finding[]; behavioural_findings: Finding[]; graph_findings: Finding[];
   supporting_evidence: Finding[]; contradictory_evidence: Finding[]; missing_information: string[];
-  recommended_next_steps: string[]; confidence: string; classification: string; llm_narrative: boolean;
+  recommended_next_steps: string[]; confidence: { level: "low" | "medium" | "high"; limitations: string[] };
+  classification: string; llm_narrative: boolean;
   evidence_ids: string[]; notes: string[];
 }
 

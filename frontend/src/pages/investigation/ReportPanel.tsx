@@ -32,7 +32,7 @@ export function ReportPanel({ report }: { report: InvestigationReport }) {
           {report.llm_narrative ? "Model-written narrative" : "Deterministic fallback (no model narrative)"}
         </span>
         <span className="pill">Classification: {report.classification}</span>
-        <span className="pill">Confidence: {report.confidence}</span>
+        <span className="pill">Confidence: {report.confidence.level}</span>
       </div>
       <p>{report.summary}</p>
       <Findings title="Model findings" items={report.model_findings} />
@@ -40,6 +40,7 @@ export function ReportPanel({ report }: { report: InvestigationReport }) {
       <Findings title="Graph findings" items={report.graph_findings} />
       <Findings title="Supporting evidence" items={report.supporting_evidence} />
       <Findings title="Contradictory evidence" items={report.contradictory_evidence} />
+      <List title="Limitations of this assessment" items={report.confidence.limitations} />
       <List title="Missing information" items={report.missing_information} />
       <List title="Recommended next steps" items={report.recommended_next_steps} />
       <List title="Notes" items={report.notes} />
