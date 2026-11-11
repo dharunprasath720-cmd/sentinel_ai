@@ -22,7 +22,8 @@ export function CasePanel({ caseId }: { caseId: number }) {
   const [error, setError] = useState<string | null>(null);
 
   const c = useQuery({ queryKey: ["case", caseId], queryFn: () => client.get<CaseDetail>(`/cases/${caseId}`) });
-  const audit = useQuery({ queryKey: ["audit"], queryFn: () => client.get<AuditEntry[]>("/audit") });
+  const isAdmin = role === "admin"; // the audit log is admin-only on the server
+  const audit = useQuery({ queryKey: ["audit"], enabled: isAdmin, queryFn: () => client.get<AuditEntry[]>("/audit") });
 
   const act = useMutation({
     mutationFn: ({ path, body }: { path: string; body: unknown }) => client.post(path, body),
@@ -101,9 +102,11 @@ export function CasePanel({ caseId }: { caseId: number }) {
 
       <section className="panel" aria-label="Audit timeline">
         <h2>Audit timeline</h2>
-        {audit.isPending ? <Spinner /> : mine.length === 0 ? <div className="muted">No audit entries for this case.</div> : (
-          <ul>{mine.map((e) => <li key={e.id}>{fmtTime(e.ts)} · {e.actor} · {e.action}</li>)}</ul>
-        )}
+        {!isAdmin ? <div className="muted">The audit timeline is available to admins.</div> :
+          audit.isPending ? <Spinner /> : audit.isError ? <ErrorState error={audit.error} onRetry={() => audit.refetch()} /> :
+          mine.length === 0 ? <div className="muted">No audit entries for this case.</div> : (
+            <ul>{mine.map((e) => <li key={e.id}>{fmtTime(e.ts)} · {e.actor} · {e.action}</li>)}</ul>
+          )}
       </section>
 
       <ConfirmDialog open={pending !== null} confirmLabel="Confirm" onConfirm={confirm} onCancel={() => setPending(null)}

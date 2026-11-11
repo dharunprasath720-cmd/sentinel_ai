@@ -40,7 +40,7 @@ const audit: AuditEntry[] = [
   { id: 2, ts: "2026-01-02T10:06:00+00:00", actor: "ana", action: "add_note", target: "case:6", before: null, after: null },
 ];
 
-function setup(opts: { role?: "viewer" | "analyst"; route?: string; routes?: Record<string, unknown> } = {}) {
+function setup(opts: { role?: "viewer" | "analyst" | "admin"; route?: string; routes?: Record<string, unknown> } = {}) {
   const client = fakeClient({
     "GET /alerts": alerts, "GET /cases": cases, "GET /cases/5": () => caseDetail(), "GET /audit": audit,
     "GET /transactions/T-1": () => txn(), "POST /cases": { id: 5, status: "open" },
@@ -173,8 +173,17 @@ describe("Investigation workspace", () => {
     expect(container.querySelector("img")).toBeNull();
   });
 
-  it("the audit timeline shows only this case", async () => {
-    setup();
+  it("analysts are told the audit timeline is admin-only, not shown a false empty list", async () => {
+    const client = setup({ role: "analyst" });
+    await openCase5();
+    const timeline = await screen.findByRole("region", { name: /audit timeline/i });
+    expect(within(timeline).getByText(/available to admins/i)).toBeInTheDocument();
+    expect(within(timeline).queryByText(/no audit entries/i)).toBeNull();
+    expect(client.calls.some((c) => c.path === "/audit")).toBe(false);
+  });
+
+  it("the audit timeline shows only this case (admin)", async () => {
+    setup({ role: "admin" });
     await openCase5();
     const timeline = await screen.findByRole("region", { name: /audit timeline/i });
     expect(await within(timeline).findByText(/open_case/)).toBeInTheDocument();
