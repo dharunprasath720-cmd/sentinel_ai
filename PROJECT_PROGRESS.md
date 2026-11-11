@@ -117,11 +117,19 @@ Deferred (decided, not forgotten): two simultaneous simulator starts can run two
 **Independent whole-branch review (Opus)** found no Critical defects and four Important ones, all fixed test-first: Graph Explorer kept the old source's graph after the selector changed; the query cache survived sign-out (another business's data could flash on screen); Investigation listed alerts and cases across sources; live counters sat under a "Data source" heading while covering all sources (now labelled).
 
 **Not verified — do not claim**
-- **The Graph Explorer canvas was never seen rendering.** The browser pane was hidden, so React Flow stayed `visibility: hidden` (it needs `requestAnimationFrame`). The data and node content were checked in the DOM (10 ring accounts with risk levels and counts); layout, edges and click-to-expand are covered only by unit tests with a mocked canvas. **Open `http://127.0.0.1:8000/#/graph` in your own browser and look.**
+- ~~The Graph Explorer canvas was never seen rendering~~ **Now verified (2026-11-11, after the UI polish):** with an emulated viewport the canvas renders: 10 ring nodes with risk-coloured borders, kind and level labels, 13 weighted edges; a DOM click on an account node fetched `/graph?account=…&hours=24&source=synthetic` and merged it (10 to 42 nodes). A pixel click through the automation tool did not register, so real mouse clicking on a node is unconfirmed. The default React Flow canvas colour is neutral dark grey, not the navy theme.
 - Quincy CF / Astralaga are not installed here, so the Georgia fallback was what rendered.
 - A refusal actually triggering Claude's server-side fallback.
 
 **Deferred (decided, not forgotten):** transaction detail and `/graph/clusters` do full-table work (fine at demo scale, slow at PaySim scale; clusters take about 3.5 s for 8); graph truncation keeps busy nodes, not risky ones; `/metrics/models` omits the training dataset and its caveat hard-codes "synthetic"; a typed note is cleared before the server accepts it; "New conversation" during an in-flight reply can leak the old turn into the new one; `GET /cases` is uncapped; cluster recomputation ignores `source`; evidence ids run together when copied. README, architecture diagrams and the demo video are still to do.
+
+## UI polish (branch ui-polish): chart fixes, login redesign, interactive touches
+
+**Verified:** frontend `vitest` **117 passed** (twice, no flakes), `tsc` clean, build OK; then checked on the live server in the browser (login shortcuts and show/hide password, count-up tiles landing on exact values, log/linear toggle, legend and partial-day note, Ctrl+K palette navigation, live feed rows and the 10-second event readout, one-row header at 1280 px).
+
+**Built:** per-level colours, count labels, a log/linear toggle and click-to-filter on the risk chart; a legend and partial-day note on the daily chart; a two-column login with title, subtitle, demo-account shortcuts (username only), show/hide password, Caps Lock hint; a shared page header; tiles that count up; route fade; animated new rows and a pulse on new HIGH/CRITICAL rows; **Ctrl+K** palette (pages, or a transaction id).
+
+**Not verified:** the HIGH/CRITICAL row pulse in a browser (no HIGH row arrived during the short replay; covered by a unit test); the look in a phone-sized viewport; reduced-motion behaviour in a real browser (unit-tested only).
 
 ## Known limitations — read before trusting or demoing
 1. **21% of fraud is missed** (33 of 154): takeover bursts that resemble legitimate bursts, and the first ring transactions before the shared-device pattern exists (point-in-time scoring cannot know it yet).
