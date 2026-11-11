@@ -9,3 +9,8 @@ export const fmtTime = (iso: string) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("en-GB", { hour12: false });
 };
+
+export const ACTION_LABELS: Record<string, string> = {
+  ALLOW: "Allow", MONITOR: "Monitor", REVIEW: "Review", VERIFY: "Verify", HOLD_RECOMMENDED: "Hold recommended",
+};
+export const actionLabel = (a: string) => ACTION_LABELS[a] ?? a;
