@@ -54,3 +54,19 @@ def register_dashboard(app: FastAPI, get_session, current_user, context: AppCont
     @app.get("/cases")
     def cases(session: Session = Depends(get_session), user: User = Depends(current_user)):
         return queries.list_cases(session, user.business_id)
+
+    @app.get("/graph/clusters")
+    def graph_clusters(source: Source = "synthetic", session: Session = Depends(get_session),
+                       user: User = Depends(current_user)):
+        return queries.flagged_clusters(session, user.business_id, source, ToolBox(session, context, user))
+
+    @app.get("/graph")
+    def graph(cluster: str | None = Query(None, min_length=1, max_length=200),
+              account: str | None = Query(None, min_length=1, max_length=200),
+              hours: int = Query(24, ge=1, le=168), source: Source = "synthetic",
+              session: Session = Depends(get_session), user: User = Depends(current_user)):
+        if (cluster is None) == (account is None):
+            raise HTTPException(status_code=422, detail="give exactly one of cluster or account")
+        if cluster is not None:
+            return queries.graph_for_cluster(session, user.business_id, ToolBox(session, context, user), cluster)
+        return queries.graph_for_account(session, user.business_id, source, account, hours)

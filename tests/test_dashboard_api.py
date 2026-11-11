@@ -198,3 +198,79 @@ def test_case_detail_route_still_works(world):
     cid = open_case_via_api(client, ana, 1)
     body = client.get(f"/cases/{cid}", headers=ana).json()
     assert body["id"] == cid and len(body["alerts"]) == 1
+
+
+# ----------------------------------------------------------------------------- graph
+def ring_cluster_id(client, headers):
+    clusters = client.get("/graph/clusters", headers=headers).json()
+    assert clusters, "the demo data contains flagged rings"
+    return clusters[0]["cluster_id"]
+
+
+def assert_well_formed(g):
+    ids = {n["id"] for n in g["nodes"]}
+    assert len(ids) == len(g["nodes"]) and len(g["nodes"]) <= 200
+    assert all(e["source"] in ids and e["target"] in ids for e in g["edges"])
+    assert {n["kind"] for n in g["nodes"]} <= {"account", "device", "merchant"}
+    assert all(n["risk_level"] in LEVELS + [None] for n in g["nodes"])
+    assert isinstance(g["truncated"], bool)
+
+
+def test_graph_clusters_lists_flagged_ring_clusters(world):
+    client = make(world)
+    rows = client.get("/graph/clusters", headers=auth(client, "vic")).json()
+    assert rows and len(rows) <= 20
+    assert {"cluster_id", "n_accounts", "n_devices", "n_merchants", "signals", "risk_indicator"} <= set(rows[0])
+    assert client.get("/graph/clusters?source=paypal_sandbox", headers=auth(client, "ana")).json() == []
+
+
+def test_graph_for_cluster_has_ring_accounts_and_edges(world):
+    client = make(world)
+    ana = auth(client, "ana")
+    g = client.get(f"/graph?cluster={ring_cluster_id(client, ana)}", headers=ana).json()
+    assert_well_formed(g)
+    kinds = {n["kind"] for n in g["nodes"]}
+    assert "account" in kinds and "device" in kinds and g["edges"]
+
+
+def test_graph_for_account(world):
+    df, *_ = world
+    idx = pick(world, "ring", HIGH_PLUS)
+    acct, dev = df.loc[idx, "account_id"], df.loc[idx, "device_id"]
+    client = make(world)
+    g = client.get(f"/graph?account={acct}&hours=24", headers=auth(client, "ana")).json()
+    assert_well_formed(g)
+    ids = {n["id"] for n in g["nodes"]}
+    assert f"account:{acct}" in ids and (pd.isna(dev) or f"device:{dev}" in ids)
+
+
+def test_graph_parameter_validation(world):
+    client = make(world)
+    ana = auth(client, "ana")
+    acct = world[0].loc[pick(world, "ring", HIGH_PLUS), "account_id"]
+    assert client.get("/graph", headers=ana).status_code == 422
+    assert client.get(f"/graph?cluster=C1&account={acct}", headers=ana).status_code == 422
+    assert client.get(f"/graph?account={acct}&hours=0", headers=ana).status_code == 422
+    assert client.get(f"/graph?account={acct}&hours=169", headers=ana).status_code == 422
+    assert client.get("/graph?account=NOPE", headers=ana).status_code == 404
+    assert client.get("/graph?cluster=CL_nope", headers=ana).status_code == 404
+
+
+def test_graph_truncates_at_the_node_cap(world, monkeypatch):
+    from sentinel.dashboard import queries
+    monkeypatch.setattr(queries, "MAX_GRAPH_NODES", 3)
+    df, *_ = world
+    acct = df.loc[pick(world, "ring", HIGH_PLUS), "account_id"]
+    client = make(world)
+    g = client.get(f"/graph?account={acct}&hours=168", headers=auth(client, "ana")).json()
+    ids = {n["id"] for n in g["nodes"]}
+    assert g["truncated"] is True and len(ids) == 3 and f"account:{acct}" in ids
+    assert all(e["source"] in ids and e["target"] in ids for e in g["edges"])
+
+
+def test_graph_scope_and_auth(world):
+    client = make(world)
+    acct = world[0].loc[pick(world, "ring", HIGH_PLUS), "account_id"]
+    assert client.get(f"/graph?account={acct}").status_code == 401
+    assert client.get(f"/graph?account={acct}", headers=auth(client, "bob")).status_code == 404
+    assert client.get("/graph/clusters", headers=auth(client, "bob")).json() == []
