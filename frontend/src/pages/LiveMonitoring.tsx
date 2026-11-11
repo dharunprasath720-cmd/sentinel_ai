@@ -26,6 +26,7 @@ function SimulatorPanel() {
   const { client, role } = useSession();
   const [speed, setSpeed] = useState("10");
   const [limit, setLimit] = useState("200");
+  const [offset, setOffset] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -49,7 +50,9 @@ function SimulatorPanel() {
     const s = Number(speed), l = Number(limit);
     if (!(Number.isFinite(s) && s > 0 && s <= 1000)) return setMessage("Speed must be between 0 and 1000 events per second");
     if (!(Number.isInteger(l) && l >= 1 && l <= 100000)) return setMessage("Limit must be a whole number from 1 to 100000");
-    void call("/simulate/start", { speed: s, limit: l });
+    const o = offset.trim() === "" ? 0 : Number(offset);
+    if (!(Number.isInteger(o) && o >= 0)) return setMessage("Start at must be a whole number, 0 or more");
+    void call("/simulate/start", o > 0 ? { speed: s, limit: l, offset: o } : { speed: s, limit: l });
   }
 
   return (
@@ -58,6 +61,7 @@ function SimulatorPanel() {
       <div className="row">
         <label>Speed (events per second) <input value={speed} onChange={(e) => setSpeed(e.target.value)} size={6} /></label>
         <label>Limit (events) <input value={limit} onChange={(e) => setLimit(e.target.value)} size={8} /></label>
+        <label>Start at event <input value={offset} onChange={(e) => setOffset(e.target.value)} size={8} placeholder="0" /></label>
         <button className="btn btn-primary" disabled={busy} onClick={start}>Start replay</button>
         <button className="btn" disabled={busy} onClick={() => void call("/simulate/stop")}>Stop replay</button>
       </div>

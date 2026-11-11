@@ -134,6 +134,35 @@ describe("LiveMonitoring page", () => {
     expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
   });
 
+  it("an analyst can start the replay part-way through the stream; the offset is sent only when set", async () => {
+    const { client } = setup();
+    await screen.findByText("OLD-HIGH");
+    await userEvent.type(screen.getByLabelText(/start at event/i), "2290");
+    await userEvent.click(screen.getByRole("button", { name: /start replay/i }));
+    await waitFor(() => expect(client.calls.find((c) => c.path === "/simulate/start")?.body).toEqual({ speed: 10, limit: 200, offset: 2290 }));
+  });
+
+  it("a negative or fractional start-at value blocks the request", async () => {
+    const { client } = setup();
+    await screen.findByText("OLD-HIGH");
+    const start = screen.getByLabelText(/start at event/i);
+    for (const bad of ["-5", "1.5"]) {
+      await userEvent.clear(start);
+      await userEvent.type(start, bad);
+      await userEvent.click(screen.getByRole("button", { name: /start replay/i }));
+      expect(await screen.findByText(/start at must be a whole number/i)).toBeInTheDocument();
+    }
+    expect(client.calls.some((c) => c.path === "/simulate/start")).toBe(false);
+  });
+
+  it("shows the server message when the offset is beyond the replay data", async () => {
+    setup({ routes: { "POST /simulate/start": () => { throw new ApiError(422, "offset 99999 is beyond the 4714 replay events (valid: 0 to 4713)"); } } });
+    await screen.findByText("OLD-HIGH");
+    await userEvent.type(screen.getByLabelText(/start at event/i), "99999");
+    await userEvent.click(screen.getByRole("button", { name: /start replay/i }));
+    expect(await screen.findByText(/beyond the 4714 replay events/i)).toBeInTheDocument();
+  });
+
   it("does not show live events from another data source", async () => {
     const { s } = setup();
     await screen.findByText("OLD-HIGH");
