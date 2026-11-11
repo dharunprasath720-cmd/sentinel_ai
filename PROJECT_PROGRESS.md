@@ -131,6 +131,10 @@ Deferred (decided, not forgotten): two simultaneous simulator starts can run two
 
 **Not verified:** the HIGH/CRITICAL row pulse in a browser (no HIGH row arrived during the short replay; covered by a unit test); the look in a phone-sized viewport; reduced-motion behaviour in a real browser (unit-tested only).
 
+## Replay offset (branch replay-offset)
+
+`POST /simulate/start` takes an optional `offset` (default 0, must be 0 to the last event, else 422 and nothing starts); Live Monitoring has a **Start at event** box (sent only when above 0). Skipped events are not scored or stored, so the scorer has no history for them. **Checked on a scratch demo, same window both ways (events 2290 to 2710, 28 ring events):** jumping ahead gave 3 LOW / 6 MODERATE / 19 HIGH with the cluster flagged at ring event 8; scoring the 2,290 earlier events first (389 s) gave 2 LOW / 7 MODERATE / 19 HIGH, flagged at event 8. Non-ring HIGH+ was 4 and 6 of 392. `SYN0013668` (legitimate but unusual) was MODERATE / MONITOR both ways. Scoring ran 5.7 to 6.0 events per second in-process. **No CRITICAL ring rows and no holds appear in this window** (a hold needs CRITICAL inside a flagged cluster); the HIGH ring rows are recommended REVIEW. Only the window 2290 to 2710 was compared, not the whole ring.
+
 ## Known limitations — read before trusting or demoing
 1. **21% of fraud is missed** (33 of 154): takeover bursts that resemble legitimate bursts, and the first ring transactions before the shared-device pattern exists (point-in-time scoring cannot know it yet).
 2. **Legit-unusual purchases are MONITORed, not REVIEWed.** The demo story "flagged for review" needs a lower REVIEW threshold or is told as "flagged for monitoring".

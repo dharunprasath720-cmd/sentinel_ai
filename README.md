@@ -31,7 +31,7 @@ different sources is never blended.
 | Page | What you do there |
 |---|---|
 | **Overview** | Portfolio tiles, risk distribution (log or linear, click a level to filter), daily volume, model quality with its caveat |
-| **Live Monitoring** | Start a replay, watch scored events arrive, latency and event-rate readouts, pause, jump to an investigation |
+| **Live Monitoring** | Start a replay (optionally part-way through the stream), watch scored events arrive, latency and event-rate readouts, pause, jump to an investigation |
 | **Investigation** | Work alerts into cases, see risk factors and SHAP bars, add notes, approve an action, resolve, generate an AI report |
 | **Graph Explorer** | Flagged clusters and account neighbourhoods; click an account to expand it |
 | **AI Investigator** | Ask questions; answers show the evidence they cite |
@@ -68,7 +68,7 @@ a browser, and `scripts/live_claude_check.py` runs one real investigation.
 **Tests:** `.venv\Scripts\python -m pytest` (407 tests, about 6 minutes on a slow laptop) and
 `npm test --prefix frontend -- --run` (117 tests).
 
-**Demo:** [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) is a four-minute walkthrough, including a warm-up step it needs.
+**Demo:** [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) is a four-minute walkthrough. It starts the replay at event 2290 so the planted ring appears within seconds.
 
 ## How it is built
 
@@ -149,7 +149,7 @@ walk-through record.
 ## Known limitations
 
 No per-IP rate limiting; scorer memory grows without bound over a long session; the live scorer handled about
-3 events per second during replay on the development laptop, so a replay is slow to reach events deep in the stream;
+6 events per second in-process (about 3 through the dashboard) on the development laptop, so a replay from the start is slow to reach events deep in the stream (use the **Start at event** box; skipped events are not scored);
 transaction detail and the clusters list do full-table work (fine at demo scale, slow at PaySim scale). The full
 deferred list is in [PROJECT_PROGRESS.md](PROJECT_PROGRESS.md).
 
