@@ -25,6 +25,7 @@ from sentinel.agent.agent import InvestigationAgent
 from sentinel.agent.tools import ToolBox
 from sentinel.cases import services
 from sentinel.cases.orm import Alert, Case, CaseAlert, CaseNote, RiskAssessmentRow, User
+from sentinel.api.dashboard import register_dashboard
 from sentinel.context import AppContext
 from sentinel.db import session_scope
 from sentinel.live.bus import EventBus
@@ -153,6 +154,8 @@ def create_app(engine: Engine, secret: str | None = None,
         if user is None:
             raise AuthError("unknown user")
         return user
+
+    register_dashboard(app, get_session, current_user, context)
 
     @app.post("/auth/login")
     def login(body: LoginIn, session: Session = Depends(get_session)):
