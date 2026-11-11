@@ -106,3 +106,21 @@ def test_businesses_do_not_influence_each_other():
         mixed.score(dict(a.iloc[cut + len(r_mixed)].to_dict()))  # business A traffic in between
         r_mixed.append(mixed.score(e).assessment.risk_score)
     np.testing.assert_allclose(r_mixed, r_alone, rtol=1e-9, atol=1e-9)
+
+
+def test_live_cluster_ids_match_the_ids_the_graph_engine_and_tools_compute(world):
+    """Found while filming the demo: live scoring hashed its internal partition key ("default|synthetic")
+    into the cluster id, so a live-flagged ring could not be opened in the Graph Explorer or by the agent's
+    get_graph_cluster tool, both of which compute the id from the real business."""
+    from sentinel.graph.engine import find_clusters
+    from sentinel.pipeline import CLUSTER_LOOKBACK_SECS
+    df, _, stream, _, scored, _ = world
+    flagged = [(i, s) for i, s in zip(stream.index, scored) if s is not None and s.cluster_id]
+    assert flagged, "the replay window contains a flagged ring"
+    ts = pd.to_datetime(df["ts"], utc=True)
+    for i, s in flagged[:5]:
+        t = ts.loc[i]
+        window = df[((ts >= t - pd.Timedelta(seconds=CLUSTER_LOOKBACK_SECS)) & (ts < t)) | (df.index == i)]
+        expected = {c.cluster_id for c in find_clusters(window)
+                    if c.flagged and df.loc[i, "external_id"] in set(c.txn_ids)}
+        assert s.cluster_id in expected, f"{s.cluster_id} is not one of {expected}"

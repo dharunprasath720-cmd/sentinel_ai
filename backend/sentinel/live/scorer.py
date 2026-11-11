@@ -139,6 +139,9 @@ class LiveScorer:
         lo = bisect.bisect_left(times, (t - CLUSTER_LOOKBACK_SECS, -1))
         hi = bisect.bisect_left(times, (t, -1))  # strictly before the event
         hist = pd.DataFrame([self._rows[p] for _, p in times[lo:hi]] + [row])
+        # hist holds only this partition's rows, so naming the REAL business here cannot blend sources; it makes
+        # the cluster id equal the one the graph endpoints and the agent's get_graph_cluster tool compute
+        hist = hist.assign(business_id=hist["_biz"])
         for c in find_clusters(hist):
             if c.flagged and row["external_id"] in set(c.txn_ids):
                 return True, c.cluster_id
