@@ -86,3 +86,12 @@ export interface InvestigationReport {
   recommended_next_steps: string[]; confidence: string; classification: string; llm_narrative: boolean;
   evidence_ids: string[]; notes: string[];
 }
+
+export interface ChatResult {
+  status: "ok" | "refused" | "truncated" | "withheld" | "iteration_limit";
+  text: string;
+  withheld_reasons: string[];
+  tool_calls: { name: string; args: unknown; error: string | null }[];
+  verified_citations: string[];
+  unverified_citations: string[];
+}
