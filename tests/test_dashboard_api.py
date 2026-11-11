@@ -93,3 +93,70 @@ def test_dashboard_responses_never_contain_label(world):
     ana = auth(client, "ana")
     for path in ("/metrics/overview", "/metrics/models"):
         assert "label" not in client.get(path, headers=ana).text.lower().replace("calibrat", "")
+
+
+# ----------------------------------------------------------------------------- transactions
+from agent_helpers import pick  # noqa: E402
+
+
+def ring_txn(world):
+    return world[0].loc[pick(world, "ring", HIGH_PLUS), "external_id"]
+
+
+def test_transactions_list_order_filter_limit(world):
+    client = make(world)
+    ana = auth(client, "ana")
+    rows = client.get("/transactions?limit=200", headers=ana).json()
+    assert len(rows) == 200
+    keys = [(r["ts"], r["external_id"]) for r in rows]
+    assert keys == sorted(keys, reverse=True)
+    assert {"external_id", "ts", "amount", "account_id", "merchant_id", "source", "risk_level", "risk_score",
+            "action", "cluster_id"} <= set(rows[0])
+    crit = client.get("/transactions?level=CRITICAL&limit=50", headers=ana).json()
+    assert crit and all(r["risk_level"] == "CRITICAL" for r in crit)
+    assert len(client.get("/transactions?limit=3", headers=ana).json()) == 3
+    assert client.get("/transactions?limit=0", headers=ana).status_code == 422
+    assert client.get("/transactions?limit=201", headers=ana).status_code == 422
+    assert client.get("/transactions?level=SEVERE", headers=ana).status_code == 422
+
+
+def test_transactions_list_source_and_scope(world):
+    client = make(world)
+    assert client.get("/transactions?source=paypal_sandbox", headers=auth(client, "ana")).json() == []
+    assert client.get("/transactions", headers=auth(client, "bob")).json() == []
+    assert client.get("/transactions").status_code == 401
+    assert client.get("/transactions", headers=auth(client, "vic")).status_code == 200
+
+
+def test_transaction_detail_has_all_parts(world):
+    df, scored, *_ = world
+    idx = pick(world, "ring", HIGH_PLUS)
+    client = make(world)
+    body = client.get(f"/transactions/{df.loc[idx, 'external_id']}", headers=auth(client, "vic")).json()
+    assert body["details"]["transaction"]["external_id"] == df.loc[idx, "external_id"]
+    assert body["risk"]["risk_level"] == scored.loc[idx, "risk_level"]
+    assert body["explanation"]["contributions"] and body["explanation_unavailable"] is None
+    assert "related" in body and body["related"]["account_id"] == df.loc[idx, "account_id"]
+
+
+def test_transaction_detail_404_and_scope(world):
+    client = make(world)
+    t = ring_txn(world)
+    assert client.get(f"/transactions/{t}").status_code == 401
+    assert client.get("/transactions/does-not-exist", headers=auth(client, "ana")).status_code == 404
+    assert client.get(f"/transactions/{t}", headers=auth(client, "bob")).status_code == 404
+
+
+def test_transaction_detail_without_model(world):
+    client = make(world, with_bundle=False)
+    r = client.get(f"/transactions/{ring_txn(world)}", headers=auth(client, "ana"))
+    body = r.json()
+    assert r.status_code == 200 and body["explanation"] is None and body["explanation_unavailable"]
+    assert body["risk"] is not None
+
+
+def test_transaction_endpoints_never_expose_label(world):
+    client = make(world)
+    ana = auth(client, "ana")
+    for path in ("/transactions?limit=20", f"/transactions/{ring_txn(world)}"):
+        assert '"label"' not in client.get(path, headers=ana).text

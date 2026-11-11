@@ -68,3 +68,25 @@ def models_summary(bundle) -> dict:
     return {"version": bundle.version, "evaluation": "held-out test split",
             "models": {name: {k: m.get(k) for k in keep} for name, m in bundle.metrics.items()},
             "caveat": CAVEAT}
+
+
+Level = Literal["LOW", "MODERATE", "HIGH", "CRITICAL"]
+
+
+def recent_transactions(session: Session, business_id: str, source: str, level: str | None,
+                        limit: int) -> list[dict]:
+    q = (session.query(Transaction, RiskAssessmentRow)
+         .outerjoin(RiskAssessmentRow, and_(RiskAssessmentRow.business_id == Transaction.business_id,
+                                            RiskAssessmentRow.txn_external_id == Transaction.external_id))
+         .filter(Transaction.business_id == business_id, Transaction.source == source))
+    if level:
+        q = q.filter(RiskAssessmentRow.risk_level == level)
+    out = []
+    for t, a in q.order_by(Transaction.ts.desc(), Transaction.external_id.desc()).limit(limit):
+        out.append({"external_id": t.external_id, "ts": t.ts.isoformat(), "amount": float(t.amount),
+                    "account_id": t.account_id, "merchant_id": t.merchant_id, "source": t.source,
+                    "risk_level": a.risk_level if a else None,
+                    "risk_score": a.risk_score if a else None,
+                    "action": a.action if a else None,
+                    "cluster_id": ((a.details or {}).get("cluster_id") if a else None)})
+    return out
