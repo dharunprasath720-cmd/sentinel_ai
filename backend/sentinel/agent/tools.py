@@ -83,8 +83,7 @@ TOOL_SCHEMAS = [
             "the model, not causes of fraud.", {"transaction_id": _STR}),
     _schema("get_recent_alerts", "The most recent alerts for this business.", {}),
     _schema("compare_transactions", "Side-by-side comparison of 2 to 10 transactions: time gaps, shared account/device/"
-            "merchant, amount ratios.", {"transaction_ids": {"type": "array", "items": _STR,
-                                                              "minItems": 2, "maxItems": 10}}),
+            "merchant, amount ratios.", {"transaction_ids": {"type": "array", "items": _STR}}),  # 2-10 ids: checked in dispatch (the API rejects minItems > 1)
     _schema("generate_investigation_report", "A deterministic, evidence-cited report skeleton for one transaction.",
             {"transaction_id": _STR}),
 ]

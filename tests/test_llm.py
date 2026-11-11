@@ -73,3 +73,25 @@ def test_structured_output_schema_has_no_unsupported_validators():
         assert banned not in blob
     assert schema["additionalProperties"] is False and "classification" in schema["properties"]
     assert set(schema["$defs"]["Finding"]["required"]) == {"claim", "evidence_ids"}
+
+
+def _walk(node):
+    if isinstance(node, dict):
+        yield node
+        for v in node.values():
+            yield from _walk(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from _walk(v)
+
+
+def test_tool_schemas_use_only_validators_the_api_accepts():
+    """Found by the first live chat call: strict tools reject minItems other than 0/1 and these
+    keywords, with a 400 that turned every chat into a 502. Argument limits are enforced by
+    ToolBox.dispatch instead."""
+    from sentinel.agent.tools import TOOL_SCHEMAS
+    for tool in TOOL_SCHEMAS:
+        for node in _walk(tool["input_schema"]):
+            for banned in ("minLength", "maxLength", "maxItems", "pattern", "default"):
+                assert banned not in node, f"{tool['name']} uses {banned}"
+            assert node.get("minItems", 0) in (0, 1), f"{tool['name']} uses minItems={node.get('minItems')}"
