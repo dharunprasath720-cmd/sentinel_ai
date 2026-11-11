@@ -80,10 +80,10 @@ Reproduced and fixed, each with a test that failed first:
 | replaying 40 stream events twice | 40 processed, then 10 new (30 duplicates dropped) |
 
 **NOT exercised yet — do not claim these work**
-- **Claude agent, live — VERIFIED once (2026-11-10):** `scripts/live_claude_check.py` made one real `claude-opus-5-5` call (input 2754 / output 2836 tokens, stop=end_turn, no fallback notes) on the top-risk demo transaction; the narrative was model-written, citation validation found no violations, it said "suspicious … not confirmed fraud" and recommended a temporary hold for analyst decision. Single sample only; chat endpoint and the refusal-fallback parameter remain unexercised.
+- **Claude agent, live — VERIFIED once (2026-11-10):** `scripts/live_claude_check.py` made one real `claude-opus-5-5` call (input 2754 / output 2836 tokens, stop=end_turn, no fallback notes) on the top-risk demo transaction; the narrative was model-written, citation validation found no violations, it said "suspicious … not confirmed fraud" and recommended a temporary hold for analyst decision. Single sample only. The chat endpoint was first exercised on 2026-11-11 and was **broken** (every chat was a 502: the `compare_transactions` tool schema used `minItems: 2`, which the API rejects for strict tools); fixed with a regression test, after which a real chat answered with cited evidence and "I can't say whether it's fraud". That live request also confirmed the API accepts the refusal-fallback parameters (`fallbacks: "default"` via `extra_body` + beta `server-side-fallback-2026-07-01`); a refusal actually triggering the fallback has not been observed.
 - **PayPal webhook, live — VERIFIED once (2026-11-11):** a real Sandbox capture (via cloudflared tunnel) delivered a real signed `PAYMENT.CAPTURE.COMPLETED` to `/paypal/webhook`; the server returned 200 after PayPal's `verify-webhook-signature` accepted it, stored the event, ingested `PP-<capture id>` (25.00, `source=paypal_sandbox`, account `PAYPAL_UNLINKED:<capture id>`) and scored it LOW/ALLOW (0.068). One sample; retries/duplicates against real PayPal, `custom_id` echo (not set), refunds and the unapproved-order error name remain unexercised. Tunnel URL is temporary.
 - **PayPal Sandbox, live — PARTLY VERIFIED (2026-11-10, capture only):** a real Sandbox order was created, approved by the user with a Sandbox buyer, and captured (COMPLETED, 25.00 USD) via `scripts/paypal_sandbox_check.py`. This confirms the OAuth token path, create/get/capture calls and the capture-response path `purchase_units[0].payments.captures[0]` (also carries `payer.payer_id`/`payer.email_address`, `seller_receivable_breakdown`). **Still NOT exercised:** the webhook (`PAYMENT.CAPTURE.COMPLETED` delivery, `verify-webhook-signature` real response, real `PAYPAL-*` headers, tunnel), whether `custom_id` is echoed (this run set none), the unapproved-order error name, and refunds. Next: `scripts/serve.py` behind a public tunnel with the webhook registered.
-- **Claude, live:** no real API call has run. The refusal-fallback parameter (`fallbacks: "default"` via `extra_body` + beta `server-side-fallback-2026-07-01`) and the structured-output request shape are **unverified**; `AnthropicLLM(use_fallbacks=False)` disables the former. Run `scripts/live_claude_check.py`.
+- **Claude, live:** see the verified entry above. Still unverified: a refusal actually triggering the server-side fallback; `AnthropicLLM(use_fallbacks=False)` disables it.
 - **Refunds:** the client method exists (`refund_capture`) but nothing calls it and it has never run; an approved-case refund workflow is not built.
 - PayPal's Transaction Search / reporting API: not built (response details unverified).
 
@@ -98,6 +98,30 @@ Reproduced by the reviewer and fixed here, each with a test that failed first (s
 - Also fixed: an unexpected exception inside a tool now becomes an error result instead of a chat failure.
 
 Deferred (decided, not forgotten): two simultaneous simulator starts can run two replay threads; scorer state changes before the database commit (a failed commit leaves behaviour having learnt a rolled-back row); the SSE stream does not re-check auth after it opens and authenticates with synchronous database I/O on the event loop; `get_related_accounts` and the model-explanation query load more rows than needed; `LiveScorer` memory grows without bound (`_rows`, `_seen`, indices); `live_claude_check.py` and one test validate a report against its own evidence ids (cannot fail); **demo credentials (`.env.demo`) are written into the OneDrive-synced folder by default**; no per-IP rate limit on the webhook, and none on LLM-backed endpoints.
+
+## Day 4 — dashboard (5 pages) + 7 read-only endpoints: BUILT and driven in a real browser
+
+**Verified by running:** backend `pytest` **407 passed**; frontend `vitest` **93 passed**, `tsc --noEmit` clean, production build OK. Walked in the browser pane against the real server with the real demo data, Claude and PayPal Sandbox row (details in `docs/superpowers/day4-verification.md`).
+
+**What is built**
+- API (all business-scoped, readable by every role, never returning the label): `GET /metrics/overview`, `/metrics/models`, `/transactions`, `/transactions/{id}`, `/cases` (+ optional `source`), `/graph/clusters`, `/graph`; `/alerts` gained an optional `source` filter. `scripts/serve.py` serves `frontend/dist` from the same address.
+- Dashboard (`frontend/`, hash routes): Overview, Live Monitoring (fetch-based SSE with tested parser, reconnect, pause, replay simulator for analysts/admins), Investigation Workspace (alerts/cases, SHAP bars, notes, approve action, resolve, AI report), Graph Explorer (React Flow, click-to-expand, 200-node cap), AI Investigator (chat). Viewers are read-only; the server also returns 403 on their writes.
+
+**Bugs found only by running it for real (each fixed test-first)**
+1. **Chat was broken since Day 3**: the `compare_transactions` tool schema used `minItems: 2`, which the API rejects for strict tools, so every `/agent/chat` was a 502. First live chat call exposed it.
+2. Live Monitoring crashed before the first event (latency is `null`).
+3. The AI report's `confidence` is an object (`level`, `limitations`); rendering it as text crashed the page (an error boundary now contains such failures).
+4. The audit timeline showed a false "no entries" for analysts (the server's `/audit` is admin-only).
+5. Zone-less API timestamps were read as local time (IST viewers saw shifted times).
+
+**Independent whole-branch review (Opus)** found no Critical defects and four Important ones, all fixed test-first: Graph Explorer kept the old source's graph after the selector changed; the query cache survived sign-out (another business's data could flash on screen); Investigation listed alerts and cases across sources; live counters sat under a "Data source" heading while covering all sources (now labelled).
+
+**Not verified — do not claim**
+- **The Graph Explorer canvas was never seen rendering.** The browser pane was hidden, so React Flow stayed `visibility: hidden` (it needs `requestAnimationFrame`). The data and node content were checked in the DOM (10 ring accounts with risk levels and counts); layout, edges and click-to-expand are covered only by unit tests with a mocked canvas. **Open `http://127.0.0.1:8000/#/graph` in your own browser and look.**
+- Quincy CF / Astralaga are not installed here, so the Georgia fallback was what rendered.
+- A refusal actually triggering Claude's server-side fallback.
+
+**Deferred (decided, not forgotten):** transaction detail and `/graph/clusters` do full-table work (fine at demo scale, slow at PaySim scale; clusters take about 3.5 s for 8); graph truncation keeps busy nodes, not risky ones; `/metrics/models` omits the training dataset and its caveat hard-codes "synthetic"; a typed note is cleared before the server accepts it; "New conversation" during an in-flight reply can leak the old turn into the new one; `GET /cases` is uncapped; cluster recomputation ignores `source`; evidence ids run together when copied. README, architecture diagrams and the demo video are still to do.
 
 ## Known limitations — read before trusting or demoing
 1. **21% of fraud is missed** (33 of 154): takeover bursts that resemble legitimate bursts, and the first ring transactions before the shared-device pattern exists (point-in-time scoring cannot know it yet).
