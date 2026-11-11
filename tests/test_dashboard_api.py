@@ -160,3 +160,41 @@ def test_transaction_endpoints_never_expose_label(world):
     ana = auth(client, "ana")
     for path in ("/transactions?limit=20", f"/transactions/{ring_txn(world)}"):
         assert '"label"' not in client.get(path, headers=ana).text
+
+
+# ----------------------------------------------------------------------------- cases
+def open_case_via_api(client, headers, n_alerts):
+    alerts = client.get("/alerts?status=open", headers=headers).json()
+    assert len(alerts) >= n_alerts
+    ids = [a["id"] for a in alerts[:n_alerts]]
+    r = client.post("/cases", json={"alert_ids": ids}, headers=headers)
+    assert r.status_code == 200
+    return r.json()["id"]
+
+
+def test_cases_list_shape_and_order(world):
+    client = make(world)
+    ana = auth(client, "ana")
+    first = open_case_via_api(client, ana, 1)
+    second = open_case_via_api(client, ana, 2)
+    rows = client.get("/cases", headers=ana).json()
+    ids = [r["id"] for r in rows]
+    assert ids == sorted(ids, reverse=True) and ids.index(second) < ids.index(first)
+    by_id = {r["id"]: r for r in rows}
+    assert by_id[first]["n_alerts"] == 1 and by_id[second]["n_alerts"] == 2
+    assert {"id", "status", "approved_action", "n_alerts", "created_at"} <= set(by_id[second])
+
+
+def test_cases_list_scope_and_auth(world):
+    client = make(world)
+    assert client.get("/cases").status_code == 401
+    assert client.get("/cases", headers=auth(client, "bob")).json() == []
+    assert client.get("/cases", headers=auth(client, "vic")).status_code == 200
+
+
+def test_case_detail_route_still_works(world):
+    client = make(world)
+    ana = auth(client, "ana")
+    cid = open_case_via_api(client, ana, 1)
+    body = client.get(f"/cases/{cid}", headers=ana).json()
+    assert body["id"] == cid and len(body["alerts"]) == 1

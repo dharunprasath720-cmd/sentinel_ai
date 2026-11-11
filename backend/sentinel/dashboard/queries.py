@@ -90,3 +90,11 @@ def recent_transactions(session: Session, business_id: str, source: str, level: 
                     "action": a.action if a else None,
                     "cluster_id": ((a.details or {}).get("cluster_id") if a else None)})
     return out
+
+
+def list_cases(session: Session, business_id: str) -> list[dict]:
+    counts = Counter(cid for (cid,) in session.query(CaseAlert.case_id)
+                     .join(Case, Case.id == CaseAlert.case_id).filter(Case.business_id == business_id))
+    cases = session.query(Case).filter_by(business_id=business_id).order_by(Case.id.desc()).all()
+    return [{"id": c.id, "status": c.status, "approved_action": c.approved_action,
+             "n_alerts": counts.get(c.id, 0), "created_at": c.created_at.isoformat()} for c in cases]

@@ -50,3 +50,7 @@ def register_dashboard(app: FastAPI, get_session, current_user, context: AppCont
             related = None
         return {"details": details, "risk": risk, "explanation": explanation,
                 "explanation_unavailable": unavailable, "related": related}
+
+    @app.get("/cases")
+    def cases(session: Session = Depends(get_session), user: User = Depends(current_user)):
+        return queries.list_cases(session, user.business_id)
