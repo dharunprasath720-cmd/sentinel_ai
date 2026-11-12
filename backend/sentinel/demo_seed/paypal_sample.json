@@ -1,0 +1,58 @@
+{
+ "note": "Real PayPal Sandbox payment(s) delivered by a signed webhook and verified with PayPal. Emails removed.",
+ "accounts": [
+  {
+   "id": "PAYPAL_UNLINKED:7WK43863SJ8311100",
+   "business_id": "demo_biz"
+  }
+ ],
+ "merchants": [
+  {
+   "id": "Q9P8M83YELMDG",
+   "category": null
+  }
+ ],
+ "transactions": [
+  {
+   "external_id": "PP-7WK43863SJ8311100",
+   "account_id": "PAYPAL_UNLINKED:7WK43863SJ8311100",
+   "merchant_id": "Q9P8M83YELMDG",
+   "device_id": null,
+   "instrument_id": null,
+   "amount": 25.0,
+   "currency": "USD",
+   "ts": "2026-11-11 13:43:06.000000",
+   "type": "PAYMENT",
+   "payment_method": "paypal",
+   "status": "completed",
+   "geo": null,
+   "label": null,
+   "source": "paypal_sandbox",
+   "business_id": "demo_biz"
+  }
+ ],
+ "risk_assessments": [
+  {
+   "business_id": "demo_biz",
+   "txn_external_id": "PP-7WK43863SJ8311100",
+   "risk_score": 0.06770233404061837,
+   "risk_level": "LOW",
+   "action": "ALLOW",
+   "calibrated_fraud_probability": 0.0,
+   "factors": "[\"Unusual transaction pattern (anomaly score)\"]",
+   "model_version": "demo-20261110T133744",
+   "policy_version": "policy-2026-11-09-a",
+   "details": "{\"inputs\": {\"ml_prob\": 0.0, \"anomaly\": 0.6770233404061837, \"behaviour\": 0.0, \"graph\": 0.0, \"velocity\": 0.0, \"account_history\": 0.0, \"merchant_risk\": 0.0, \"cluster_flagged\": false}, \"behaviour_reasons\": [], \"cluster_id\": null, \"late\": false}"
+  }
+ ],
+ "paypal_events": [
+  {
+   "event_id": "WH-5MG35967TU1064912-1FS306614P924573U",
+   "event_type": "PAYMENT.CAPTURE.COMPLETED",
+   "txn_external_id": "PP-7WK43863SJ8311100",
+   "received_at": "2026-11-11 13:44:08.789301",
+   "processed_at": "2026-11-11 13:44:08.867529",
+   "payload": "{\"id\": \"WH-5MG35967TU1064912-1FS306614P924573U\", \"event_version\": \"1.0\", \"create_time\": \"2026-11-11T13:43:34.224Z\", \"resource_type\": \"capture\", \"resource_version\": \"2.0\", \"event_type\": \"PAYMENT.CAPTURE.COMPLETED\", \"summary\": \"Payment completed for $ 25.0 USD\", \"resource\": {\"id\": \"7WK43863SJ8311100\", \"amount\": {\"currency_code\": \"USD\", \"value\": \"25.00\"}, \"final_capture\": true, \"seller_protection\": {\"status\": \"ELIGIBLE\", \"dispute_categories\": [\"ITEM_NOT_RECEIVED\", \"UNAUTHORIZED_TRANSACTION\"]}, \"seller_receivable_breakdown\": {\"gross_amount\": {\"currency_code\": \"USD\", \"value\": \"25.00\"}, \"paypal_fee\": {\"currency_code\": \"USD\", \"value\": \"1.51\"}, \"net_amount\": {\"currency_code\": \"USD\", \"value\": \"23.49\"}}, \"status\": \"COMPLETED\", \"supplementary_data\": {\"related_ids\": {\"order_id\": \"0WT141106U405760Y\"}}, \"payee\": {\"email_address\": \"redacted@sandbox.invalid\", \"merchant_id\": \"Q9P8M83YELMDG\"}, \"create_time\": \"2026-11-11T13:43:06Z\", \"update_time\": \"2026-11-11T13:43:06Z\", \"links\": [{\"href\": \"https://api.sandbox.paypal.com/v2/payments/captures/7WK43863SJ8311100\", \"rel\": \"self\", \"method\": \"GET\"}, {\"href\": \"https://api.sandbox.paypal.com/v2/payments/captures/7WK43863SJ8311100/refund\", \"rel\": \"refund\", \"method\": \"POST\"}, {\"href\": \"https://api.sandbox.paypal.com/v2/checkout/orders/0WT141106U405760Y\", \"rel\": \"up\", \"method\": \"GET\"}]}, \"links\": [{\"href\": \"https://api.sandbox.paypal.com/v1/notifications/webhooks-events/WH-5MG35967TU1064912-1FS306614P924573U\", \"rel\": \"self\", \"method\": \"GET\"}, {\"href\": \"https://api.sandbox.paypal.com/v1/notifications/webhooks-events/WH-5MG35967TU1064912-1FS306614P924573U/resend\", \"rel\": \"resend\", \"method\": \"POST\"}]}"
+  }
+ ]
+}

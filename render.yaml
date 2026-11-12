@@ -1,0 +1,20 @@
+# Render Blueprint for the public demo. Free plan: the service sleeps when idle, so the first visit takes about a minute.
+services:
+  - type: web
+    name: sentinel-ai
+    runtime: docker
+    plan: free
+    healthCheckPath: /
+    envVars:
+      # Optional. Leave these unset and the demo still works: AI reports use the deterministic evidence version.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: SENTINEL_AI_DAILY_LIMIT   # caps model calls per day so a public site cannot run up a bill
+        value: "30"
+      # Optional. Sandbox credentials only, to let the webhook route verify real PayPal Sandbox payments.
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false

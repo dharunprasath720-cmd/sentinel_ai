@@ -95,3 +95,28 @@ def test_tool_schemas_use_only_validators_the_api_accepts():
             for banned in ("minLength", "maxLength", "maxItems", "pattern", "default"):
                 assert banned not in node, f"{tool['name']} uses {banned}"
             assert node.get("minItems", 0) in (0, 1), f"{tool['name']} uses minItems={node.get('minItems')}"
+
+
+def test_daily_call_limit_stops_calls_and_resets_each_day(monkeypatch):
+    import datetime
+    monkeypatch.setenv("SENTINEL_AI_DAILY_LIMIT", "2")
+    c = RecordingClient()
+    llm = AnthropicLLM(client=c)
+    llm.create(max_tokens=10, messages=[])
+    llm.create(max_tokens=10, messages=[])
+    import pytest
+    with pytest.raises(RuntimeError, match="daily AI call limit"):
+        llm.create(max_tokens=10, messages=[])
+    assert len(c.calls) == 2  # the blocked call never reached the API
+    llm._day = datetime.date(2000, 1, 1)  # a new day resets the count
+    llm.create(max_tokens=10, messages=[])
+    assert len(c.calls) == 3
+
+
+def test_no_limit_by_default(monkeypatch):
+    monkeypatch.delenv("SENTINEL_AI_DAILY_LIMIT", raising=False)
+    c = RecordingClient()
+    llm = AnthropicLLM(client=c)
+    for _ in range(5):
+        llm.create(max_tokens=10, messages=[])
+    assert len(c.calls) == 5

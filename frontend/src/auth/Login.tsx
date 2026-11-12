@@ -5,6 +5,9 @@ import { Navigate } from "react-router-dom";
 import { ApiError } from "../api/client";
 import { useSession } from "./session";
 
+// A public demo deploy publishes one shared demo password at build time; locally this is unset and passwords stay in .env.demo.
+const PUBLIC_DEMO_PASSWORD = (import.meta.env.VITE_DEMO_PASSWORD as string | undefined) || "";
+
 const DEMO_USERS = [
   { name: "ana", role: "analyst" },
   { name: "vic", role: "viewer" },
@@ -82,12 +85,14 @@ export function Login() {
           <div className="row">
             {DEMO_USERS.map((u) => (
               <button type="button" key={u.name} className="chip"
-                      onClick={() => { setUsername(u.name); passwordRef.current?.focus(); }}>
+                      onClick={() => { setUsername(u.name); if (PUBLIC_DEMO_PASSWORD) setPassword(PUBLIC_DEMO_PASSWORD); passwordRef.current?.focus(); }}>
                 {u.name} <span className="muted">{u.role}</span>
               </button>
             ))}
           </div>
-          <span className="muted small">Passwords are in .env.demo on the server machine.</span>
+          <span className="muted small">
+            {PUBLIC_DEMO_PASSWORD ? `Public demo with synthetic data. Every account uses the password: ${PUBLIC_DEMO_PASSWORD}` : "Passwords are in .env.demo on the server machine."}
+          </span>
         </div>
       </motion.form>
     </div>

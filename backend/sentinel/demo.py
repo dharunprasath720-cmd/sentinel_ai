@@ -8,6 +8,7 @@ Demo users get random passwords written to a git-ignored env file (never printed
 plaintext anywhere else); the database only holds argon2 hashes.
 """
 import json
+import os
 import secrets
 from pathlib import Path
 
@@ -83,7 +84,8 @@ def build_demo(db_url: str, out_dir: Path, env_file: Path, seed: int = 42, n_acc
 
     db = make_engine(db_url)
     init_db(db)
-    passwords = {name: secrets.token_urlsafe(12) for name, _ in USERS}
+    shared = os.environ.get("SENTINEL_DEMO_PASSWORD")  # a PUBLIC demo deploy sets one shared, published password
+    passwords = {name: shared or secrets.token_urlsafe(12) for name, _ in USERS}
     with session_scope(db) as s:
         for name, role in USERS:
             s.add(User(username=name, password_hash=hash_password(passwords[name]), role=role,

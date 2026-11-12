@@ -23,7 +23,9 @@ from sentinel.agent.llm import AnthropicLLM  # noqa: E402
 from sentinel.api.app import create_app  # noqa: E402
 from sentinel.api.frontend import mount_frontend  # noqa: E402
 from sentinel.demo import build_demo, load_demo  # noqa: E402
+from sentinel.db import make_engine  # noqa: E402
 from sentinel.paypal.client import PayPalClient  # noqa: E402
+from sentinel.paypal_seed import seed_paypal_sample  # noqa: E402
 from sentinel.paypal.settings import PayPalSettings  # noqa: E402
 
 
@@ -38,7 +40,12 @@ def load_env_file(path: Path) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rebuild", action="store_true")
-    ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")))
+    ap.add_argument("--host", default=os.environ.get("SENTINEL_HOST", "127.0.0.1"),
+                    help="use 0.0.0.0 to accept outside connections (a hosted demo); default is this machine only")
+    ap.add_argument("--build-only", action="store_true", help="build the demo data and exit (used when baking a container image)")
+    ap.add_argument("--seed-paypal-sample", action="store_true",
+                    help="add one real, verified PayPal Sandbox payment to the demo database (public demo only)")
     ap.add_argument("--accounts", type=int, default=500)
     ap.add_argument("--days", type=int, default=30)
     ap.add_argument("--home", type=Path, default=ROOT,
@@ -51,6 +58,11 @@ def main() -> None:
     if args.rebuild or not (art / "meta.json").exists():
         db_file.unlink(missing_ok=True)
         build_demo(db_url, art, env_file=env_demo, n_accounts=args.accounts, days=args.days)
+    if args.seed_paypal_sample:
+        print("PayPal sample payments in the database:", seed_paypal_sample(make_engine(db_url)))
+    if args.build_only:
+        print("demo built; exiting (--build-only)")
+        return
     load_env_file(env_demo)
     load_env_file(ROOT / ".env")
 
@@ -70,7 +82,7 @@ def main() -> None:
         print(f"Dashboard: http://127.0.0.1:{args.port}/")
     else:
         print("Dashboard: not built (run `npm run build --prefix frontend`); the API still works")
-    uvicorn.run(app, host="127.0.0.1", port=args.port)
+    uvicorn.run(app, host=args.host, port=args.port)
 
 
 if __name__ == "__main__":
