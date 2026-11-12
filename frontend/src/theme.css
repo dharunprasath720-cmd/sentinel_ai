@@ -350,3 +350,14 @@ tr.row-pulse { animation: row-in 180ms var(--ease-out), row-pulse 1400ms var(--e
 .grid-shell .ag-cell { display: flex; align-items: center; }
 .grid-shell .ag-cell .badge { padding: 0 0.55rem; font-size: 0.72rem; line-height: 1.55; }
 .grid-shell .ag-cell a { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Chart scale toggle: compact, and clear of the legend chips below it */
+section[aria-label="Risk level distribution"] > .row.spread { align-items: flex-start; margin-bottom: 0.55rem; gap: 0.6rem; }
+section[aria-label="Risk level distribution"] [aria-label="Chart scale"] { flex-wrap: nowrap; gap: 0.35rem; flex-shrink: 0; }
+section[aria-label="Risk level distribution"] [aria-label="Chart scale"] .btn-small { padding: 0.12rem 0.65rem; font-size: 0.8rem; line-height: 1.3; }
+section[aria-label="Risk level distribution"] [aria-label="Filter by risk level"] { margin-bottom: 0.35rem; }
+
+/* Investigation: the alerts and cases list stays beside the case while the page scrolls to the report */
+@media (min-width: 901px) {
+  .split > .list-panel { position: sticky; top: 5.2rem; }
+}

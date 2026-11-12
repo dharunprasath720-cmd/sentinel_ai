@@ -265,6 +265,7 @@ try {
     await page.locator('section[aria-label="Investigation report"]').waitFor({ timeout: 240000 });
   });
   await page.locator('section[aria-label="Investigation report"]').scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollTo({ left: 0, top: window.scrollY, behavior: "instant" }));
   await say("Every claim cites an evidence id the tools returned. It says suspicious, never fraud confirmed.", 7000);
   await shot("12-report");
   await page.evaluate(() => document.querySelector('section[aria-label="Investigation report"]')?.scrollBy?.(0, 0));
@@ -293,8 +294,7 @@ try {
     log("no PayPal row in this demo; showing a card instead");
     await card("PayPal Sandbox", ["A real signed payment webhook was verified in testing", "Not shown in this recording."], 5000);
   }
-  await card("SENTINEL AI", ["Deterministic scoring. An AI that must show its evidence. A human who decides.",
-    "About a fifth of planted fraud is missed. The data is synthetic. PayPal is Sandbox only; refunds were never run."], 7000);
+  await card("SENTINEL AI", ["Deterministic scoring. An AI that must show its evidence. A human who decides."], 6000);
 } catch (err) {
   log("FAILED:", err.message);
   await shot("zz-failure").catch(() => {});
