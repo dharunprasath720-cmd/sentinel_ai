@@ -38,7 +38,17 @@ It is a development tool, not part of the app, and has its own `package.json`.
   report falls back to the deterministic version and the caption will be wrong, so set it.
 - The login password is read from `DEMO_HOME/.env.demo` at run time and typed into a masked field. It is never logged.
 
+## Length and the PayPal scene
+
+The hackathon rule is a video under 3 minutes. The script fails (exit code 2) if the encoded MP4 is 175 seconds or longer;
+lower `SCALE` (the caption dwell multiplier, default 0.8) and record again.
+
+The PayPal scene shows a payment that is already in the demo database: it switches the data source to PayPal Sandbox and
+opens the `PP-…` row. It cannot make a new payment (that needs a buyer's approval in a browser), so the caption says the
+payment was received earlier. A freshly built demo has no PayPal row; either send a real Sandbox payment to it first
+(`scripts/paypal_sandbox_check.py` with the webhook configured), or the scene falls back to a card that says the payment is
+not shown.
+
 ## What it does not do
 
-It does not show the PayPal Sandbox payment live (that needs your approval in a browser); a closing card says so. It does
-not narrate. It records a headless browser, not your desktop.
+It does not narrate, and it records a headless browser, not your desktop.

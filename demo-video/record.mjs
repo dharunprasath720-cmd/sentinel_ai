@@ -27,7 +27,9 @@ fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(path.join(OUT, "frames"), { recursive: true });
 
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
-const dwell = (ms) => (FAST ? Math.max(300, ms * 0.25) : ms);
+const SCALE = Number(process.env.SCALE ?? 0.8);   // caption dwell multiplier
+const MAX_SECONDS = 175;                         // hackathon rule: the video must be under 3 minutes
+const dwell = (ms) => (FAST ? Math.max(300, ms * 0.25) : ms * SCALE);
 
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({
@@ -84,7 +86,7 @@ async function click(locator) {
   await locator.scrollIntoViewIfNeeded();
   const box = await locator.boundingBox();
   if (!box) throw new Error("no box to click");
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: FAST ? 4 : 18 });
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: FAST ? 4 : 12 });
   await page.waitForTimeout(dwell(250));
   await locator.click();
   await page.waitForTimeout(dwell(300));
@@ -125,9 +127,6 @@ try {
   await click(page.locator(".level-chip", { hasText: "MODERATE" }));
   await say("Click a risk level to list its recent transactions.", 3500);
   await click(page.locator(".level-chip", { hasText: "MODERATE" }));
-  await click(page.getByRole("button", { name: "Linear scale" }));
-  await say("Linear scale shows the true imbalance: fraud is rare.", 3000);
-  await click(page.getByRole("button", { name: "Log scale" }));
   await page.locator('[aria-label="Model quality"]').scrollIntoViewIfNeeded();
   await say("Model quality, honestly: recall sits beside precision. It misses things, and the screen says so.", 6000);
   await shot("03-model");
@@ -176,7 +175,7 @@ try {
 
   const legitRow = page.locator("tr", { has: page.locator(`a:text-is("${LEGIT_ID}")`) });
   let sawLegit = true;
-  await fastForward("waiting for the legitimate-but-unusual purchase", 8, async () => {
+  await fastForward("waiting for the legitimate-but-unusual purchase", 14, async () => {
     await caption("The replay continues (sped up).");
     await legitRow.first().waitFor({ timeout: 300000 }).catch(() => { sawLegit = false; });
   });
@@ -213,7 +212,7 @@ try {
   await top();
   await page.keyboard.press("Control+k");
   await say("Ctrl+K jumps anywhere. Paste a transaction id to open its investigation.", 3000);
-  await page.getByRole("combobox", { name: /search pages/i }).pressSequentially(subject, { delay: FAST ? 10 : 90 });
+  await page.getByRole("combobox", { name: /search pages/i }).pressSequentially(subject, { delay: FAST ? 10 : 55 });
   await page.waitForTimeout(dwell(600));
   await page.keyboard.press("Enter");
   await page.getByRole("heading", { name: `Transaction ${subject}` }).waitFor({ timeout: 60000 });
@@ -225,9 +224,6 @@ try {
   const recommendedHold = /Hold recommended/i.test(riskText);
   log("risk panel for the subject:", riskText.slice(0, 120));
   await shot("09-investigation");
-  await page.locator('section[aria-label="Related accounts"]').scrollIntoViewIfNeeded();
-  await say("Related accounts share a device or a merchant. That is a relationship to examine, not evidence of wrongdoing.", 6000);
-
   await top();
   await click(page.locator(`input[aria-label="Select ${subject}"]`));
   await click(page.getByRole("button", { name: /open case from selected/i }));
@@ -248,7 +244,7 @@ try {
   // AI report (real Claude call)
   const reportBtn = page.getByRole("button", { name: /generate ai report/i });
   await click(reportBtn);
-  await fastForward("Claude writing the report", 8, async () => {
+  await fastForward("Claude writing the report", 10, async () => {
     await caption("Claude investigates through read-only tools. About a minute in real time (sped up).");
     await page.locator('section[aria-label="Investigation report"]').waitFor({ timeout: 240000 });
   });
@@ -260,31 +256,29 @@ try {
   await say("It also lists the contradictory evidence, the limits of its confidence, and what is missing.", 6500);
   await shot("13-report-limits");
 
-  // ---------------------------------------------------------------- the innocent purchase
-  if (sawLegit) {
-    log("scene: legitimate purchase");
-    await top();
-    await page.keyboard.press("Control+k");
-    await page.getByRole("combobox", { name: /search pages/i }).pressSequentially(LEGIT_ID, { delay: FAST ? 10 : 90 });
-    await page.waitForTimeout(dwell(500));
-    await page.keyboard.press("Enter");
-    // wait for THIS transaction's page: the previous investigation's panel is still on screen until it loads
-    await page.getByRole("heading", { name: `Transaction ${LEGIT_ID}` }).waitFor({ timeout: 60000 });
-    await page.locator('section[aria-label="Risk assessment"]').waitFor({ timeout: 60000 });
-    const risk = (await page.locator('section[aria-label="Risk assessment"]').innerText()).replace(/\s+/g, " ");
-    log("legit risk panel:", risk.slice(0, 160));
-    const monitored = /MODERATE/.test(risk) && /Monitor/.test(risk);
-    await say(monitored
-      ? "The legitimate purchase: unusual for this account, rated MODERATE with the action Monitor. Flagged for attention, not called fraud."
-      : "The legitimate purchase, shown exactly as scored.", 7000);
-    await shot("14-legit");
+  // ---------------------------------------------------------------- the real PayPal Sandbox payment
+  log("scene: paypal sandbox");
+  await top();
+  await page.getByLabel("Data source").selectOption("paypal_sandbox");
+  await click(page.locator(".nav a", { hasText: "Live Monitoring" }));
+  const ppRow = page.locator("tbody tr", { has: page.locator('a:text-matches("^PP-")') }).first();
+  const hasPayPal = await ppRow.waitFor({ timeout: 15000 }).then(() => true).catch(() => false);
+  if (hasPayPal) {
+    await ppRow.scrollIntoViewIfNeeded();
+    const ppText = (await ppRow.innerText()).replace(/\s+/g, " ");
+    log("paypal row:", ppText);
+    await say("Data source: PayPal Sandbox. A real Sandbox payment, delivered by signed webhook and verified with PayPal before scoring (received 11 Nov 2026).", 7500);
+    await shot("15-paypal-live");
+    await click(ppRow.locator("a").first());
+    await page.getByRole("heading", { name: /^Transaction PP-/ }).waitFor({ timeout: 60000 });
+    await say("The webhook carries no payer identity, so it is scored as its own account: low risk, action Allow. Sources are never blended.", 7000);
+    await shot("16-paypal-detail");
+  } else {
+    log("no PayPal row in this demo; showing a card instead");
+    await card("PayPal Sandbox", ["A real signed payment webhook was verified in testing", "Not shown in this recording."], 5000);
   }
-
-  // ---------------------------------------------------------------- honest closing cards
-  await card("PayPal Sandbox", ["A real signed payment webhook was verified in testing",
-    "One capture, one webhook. Refunds exist in code but were never run. Not re-run in this recording."], 7000);
   await card("SENTINEL AI", ["Deterministic scoring. An AI that must show its evidence. A human who decides.",
-    "About a fifth of planted fraud is missed. The data is synthetic. PayPal is Sandbox only."], 8000);
+    "About a fifth of planted fraud is missed. The data is synthetic. PayPal is Sandbox only; refunds were never run."], 7000);
 } catch (err) {
   log("FAILED:", err.message);
   await shot("zz-failure").catch(() => {});
@@ -320,4 +314,8 @@ const mp4 = path.join(OUT, "sentinel-demo.mp4");
 const enc = spawnSync(FFMPEG, ["-y", "-i", raw, "-filter_complex", filter, "-map", "[out]", "-c:v", "libx264", "-pix_fmt", "yuv420p",
   "-crf", "20", "-preset", "medium", "-r", "30", "-movflags", "+faststart", mp4], { encoding: "utf8" });
 if (enc.status !== 0) { console.error(enc.stderr.slice(-1500)); throw new Error("ffmpeg failed"); }
-log("MP4:", mp4);
+const outProbe = spawnSync(FFMPEG, ["-i", mp4], { encoding: "utf8" });
+const od = outProbe.stderr.match(/Duration: (\d+):(\d+):([\d.]+)/);
+const seconds = od ? +od[1] * 3600 + +od[2] * 60 + parseFloat(od[3]) : NaN;
+log("MP4:", mp4, "| length", seconds.toFixed(1), "s");
+if (!(seconds < MAX_SECONDS)) { console.error(`TOO LONG: ${seconds.toFixed(1)} s (limit ${MAX_SECONDS} s). Lower SCALE and record again.`); process.exit(2); }

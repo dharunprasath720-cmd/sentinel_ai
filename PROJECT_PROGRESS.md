@@ -143,6 +143,14 @@ The live scorer works inside a per-source partition and passed that internal key
 
 `demo-video/` holds a Playwright script that drives the real dashboard in headless Chromium and records a captioned MP4 (burned-in captions, a visible cursor, dead waits sped up 6 to 8 times, no narration). **Result:** 3 min 24 s, 1280x720, about 11.5 MB, recorded on a fresh scratch demo (the real `demo.db` is untouched) with one real Claude report call. It covers: sign-in, Overview (log scale, filter, model quality), the Live Monitoring replay from event 2290 (the ring appears, the Cluster column fills in, the legitimate purchase lands at MODERATE / Monitor), the Graph Explorer (the live cluster plus click-to-expand), Ctrl+K, an investigation with a case, a note, a confirmation and the AI report, then closing cards. **Not in the video:** a live PayPal payment (a card says one signed webhook was verified in testing and refunds were never run). Captions that state an outcome (the legitimate purchase's level, the recommended action) are computed from what is on screen, so they cannot drift from the data. Three takes were needed: the first two exposed a real bug (the cluster-id fix above) and two captions that overreached.
 
+## Submission check against the hackathon requirements (2026-11-12)
+
+Checked against the "Requirements" text the user pasted from the Devpost page (the page itself could not be fetched: bot check).
+- **Met:** PayPal Sandbox + AI integration; working prototype; run instructions (a fresh clone installed the frontend, built it, and passed a 56-test subset; creating a new Python environment from `requirements.txt` was not re-tested).
+- **Video:** re-cut to **2 min 43 s** (limit: under 3 minutes). It now shows the real Sandbox payment `PP-7WK43863SJ8311100` (received 2026-11-11 by signed webhook) in the dashboard, captioned as received earlier; that row was copied from the real `demo.db` into the scratch recording database. No music, no logos.
+- **Git history scanned:** no API keys, passwords, tokens or tunnel URLs in any commit. Every commit carries the author's personal email, which becomes public with the repo.
+- **Not met at the time of writing:** no `LICENSE` file; the repository has no remote and is not public; the video is not on YouTube. The submission deadline time and time zone were not in the pasted text.
+
 ## Known limitations — read before trusting or demoing
 1. **21% of fraud is missed** (33 of 154): takeover bursts that resemble legitimate bursts, and the first ring transactions before the shared-device pattern exists (point-in-time scoring cannot know it yet).
 2. **Legit-unusual purchases are MONITORed, not REVIEWed.** The demo story "flagged for review" needs a lower REVIEW threshold or is told as "flagged for monitoring".
