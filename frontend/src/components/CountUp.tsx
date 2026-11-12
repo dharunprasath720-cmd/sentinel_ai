@@ -7,7 +7,7 @@ const canAnimate = () =>
 
 /** A number that counts up to its value. Driven by a timer, not requestAnimationFrame, so it still
  *  finishes in a background or hidden tab. Always lands exactly on `value`. */
-export function CountUp({ value, format = (n: number) => String(n), duration = 700 }:
+export function CountUp({ value, format = (n: number) => String(n), duration = 450 }:
   { value: number; format?: (n: number) => string; duration?: number }) {
   const [shown, setShown] = useState(() => (canAnimate() ? 0 : value));
   const latest = useRef(shown);

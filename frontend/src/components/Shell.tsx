@@ -67,8 +67,8 @@ export function Shell() {
       </header>
       <main className="page">
         <ErrorBoundary key={location.key}>
-          <motion.div key={location.pathname} initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
+          <motion.div key={location.pathname} initial={reduceMotion ? false : { opacity: 0 }}
+                      animate={{ opacity: 1 }} transition={{ duration: 0.14, ease: [0.23, 1, 0.32, 1] }}>
             <Outlet />
           </motion.div>
         </ErrorBoundary>

@@ -275,3 +275,47 @@ th, td { padding: 0.32rem 0.55rem; font-size: 0.86rem; }
 .chat-page { display: flex; flex-direction: column; height: calc(100vh - 110px); min-height: 460px; }
 .chat-page .chat-scroll { flex: 1 1 auto; max-height: none; min-height: 0; background: rgba(56, 189, 248, 0.03); border: 1px solid var(--border); border-radius: 14px; padding: 0.6rem; }
 .chat-page form { flex: 0 0 auto; }
+
+/* ================================================================ motion (Emil Kowalski's rules)
+   Strong custom curves instead of the weak built-ins; exact properties instead of `all`; every pressable thing
+   answers a press; hover effects only where a real pointer exists; frequent things barely animate. */
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+/* press feedback: the interface hears you (100 to 160 ms) */
+.btn, .nav a, .chip, .level-chip, .icon-btn, .brand-mark {
+  transition: transform 140ms var(--ease-out), background-color 160ms var(--ease-out), border-color 160ms var(--ease-out),
+    color 160ms var(--ease-out), box-shadow 200ms var(--ease-out), filter 160ms var(--ease-out);
+}
+.btn:active:not(:disabled), .nav a:active, .chip:active, .level-chip:active, .icon-btn:active { transform: scale(0.97); }
+tr.clickable { transition: background-color 120ms var(--ease-out); }
+.react-flow__node { transition: filter 160ms var(--ease-out); }
+
+/* touch screens fire hover on tap: undo the hover looks when there is no real pointer */
+@media (hover: none), (pointer: coarse) {
+  .btn:hover:not(:disabled) { border-color: var(--border); }
+  .nav a:hover { border-color: var(--border); color: #bccbe8; }
+  .nav a.active:hover { border-color: transparent; color: #fff; }
+  .chip:hover { border-color: var(--border); }
+  .level-chip:hover { filter: none; }
+  .icon-btn:hover { color: var(--muted); background: none; }
+  tr.clickable:hover { background: transparent; }
+}
+
+/* live feed: events can arrive several times a second, so a new row only fades in (180 ms, no slide);
+   the one purposeful motion is the single pulse on a HIGH or CRITICAL row, which exists to draw the eye */
+@keyframes row-in { from { opacity: 0; } to { opacity: 1; } }
+tr.row-new { animation: row-in 180ms var(--ease-out); }
+tr.row-pulse { animation: row-in 180ms var(--ease-out), row-pulse 1400ms var(--ease-out); }
+
+/* modal confirmations are occasional: a short fade and a small scale from 0.96, never from nothing.
+   Modals keep a centred origin because they are not anchored to a trigger. */
+.overlay { transition: opacity 160ms var(--ease-out); @starting-style { opacity: 0; } }
+.dialog { transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-out); transform-origin: center; @starting-style { opacity: 0; transform: scale(0.96); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .btn:active:not(:disabled), .nav a:active, .chip:active, .level-chip:active, .icon-btn:active { transform: none; }
+  .dialog { transition: opacity 180ms var(--ease-out); @starting-style { opacity: 0; transform: none; } }
+}

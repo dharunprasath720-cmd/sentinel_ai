@@ -41,7 +41,7 @@ export function Login() {
   return (
     <div className="login-page">
       <section className="login-hero" aria-label="About SENTINEL">
-        <motion.div initial={reduceMotion ? false : { opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }}>
+        <motion.div initial={reduceMotion ? false : { opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}>
           <div className="login-mark" aria-hidden><ShieldCheck size={34} /></div>
           <h1>SENTINEL</h1>
           <p className="login-sub">Payment-fraud intelligence</p>
@@ -55,7 +55,7 @@ export function Login() {
       </section>
 
       <motion.form className="login-card" onSubmit={submit} aria-labelledby="login-title"
-                   initial={reduceMotion ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}>
+                   initial={reduceMotion ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.06, ease: [0.23, 1, 0.32, 1] }}>
         <h2 id="login-title">Sign in</h2>
         <div className="field">
           <label htmlFor="login-username">Username</label>
