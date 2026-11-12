@@ -24,4 +24,4 @@ ENV SENTINEL_DEMO_PASSWORD=$DEMO_PASSWORD \
     PYTHONUNBUFFERED=1
 RUN python scripts/serve.py --build-only --seed-paypal-sample --home /app/data
 EXPOSE 8000
-CMD ["python", "scripts/serve.py", "--home", "/app/data"]
+CMD ["python", "scripts/serve.py", "--home", "/app/data", "--demo-password", "sentinel-demo"]

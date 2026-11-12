@@ -107,6 +107,15 @@ def build_demo(db_url: str, out_dir: Path, env_file: Path, seed: int = 42, n_acc
     log(f"demo built: {len(history)} history rows, {len(stream)} stream rows; credentials in {env_file.name}")
 
 
+def set_demo_passwords(engine: Engine, password: str) -> int:
+    """Give every demo user the same (public) password. Only for a published demo deploy; returns the user count."""
+    with session_scope(engine) as s:
+        users = s.query(User).all()
+        for u in users:
+            u.password_hash = hash_password(password)
+        return len(users)
+
+
 def load_demo(db_url: str, out_dir: Path, business: str = BUSINESS) -> tuple[Engine, AppContext]:
     out_dir = Path(out_dir)
     bundle = TrainedBundle.load(out_dir)

@@ -22,7 +22,7 @@ import uvicorn  # noqa: E402
 from sentinel.agent.llm import AnthropicLLM  # noqa: E402
 from sentinel.api.app import create_app  # noqa: E402
 from sentinel.api.frontend import mount_frontend  # noqa: E402
-from sentinel.demo import build_demo, load_demo  # noqa: E402
+from sentinel.demo import build_demo, load_demo, set_demo_passwords  # noqa: E402
 from sentinel.db import make_engine  # noqa: E402
 from sentinel.paypal.client import PayPalClient  # noqa: E402
 from sentinel.paypal_seed import seed_paypal_sample  # noqa: E402
@@ -43,6 +43,8 @@ def main() -> None:
     ap.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")))
     ap.add_argument("--host", default=os.environ.get("SENTINEL_HOST", "127.0.0.1"),
                     help="use 0.0.0.0 to accept outside connections (a hosted demo); default is this machine only")
+    ap.add_argument("--demo-password", default=os.environ.get("SENTINEL_DEMO_PASSWORD"),
+                    help="PUBLIC demo only: on every start, give all demo users this one published password")
     ap.add_argument("--build-only", action="store_true", help="build the demo data and exit (used when baking a container image)")
     ap.add_argument("--seed-paypal-sample", action="store_true",
                     help="add one real, verified PayPal Sandbox payment to the demo database (public demo only)")
@@ -66,6 +68,8 @@ def main() -> None:
     load_env_file(env_demo)
     load_env_file(ROOT / ".env")
 
+    if args.demo_password:
+        print("demo passwords set to the shared public password for", set_demo_passwords(make_engine(db_url), args.demo_password), "users")
     print("loading the demo world (warming the live scorer)...")
     engine, ctx = load_demo(db_url, art)
     try:
