@@ -161,3 +161,7 @@ frontend/           React, TypeScript, Vite, Tailwind, Recharts, React Flow, Fra
 scripts/            serve.py  check_env.py  paypal_sandbox_check.py  live_claude_check.py
 tests/              pytest suite (backend)       docs/   architecture, demo script, specs and plans
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
