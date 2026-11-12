@@ -27,7 +27,7 @@ fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(path.join(OUT, "frames"), { recursive: true });
 
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
-const SCALE = Number(process.env.SCALE ?? 0.8);   // caption dwell multiplier
+const SCALE = Number(process.env.SCALE ?? 0.68);   // caption dwell multiplier
 const MAX_SECONDS = 175;                         // hackathon rule: the video must be under 3 minutes
 const dwell = (ms) => (FAST ? Math.max(300, ms * 0.25) : ms * SCALE);
 
@@ -124,11 +124,10 @@ try {
   await shot("02-overview");
   await page.locator('[aria-label="Risk level distribution"]').scrollIntoViewIfNeeded();
   await say("Log scale keeps small HIGH and CRITICAL groups visible next to thousands of LOW payments.", 4500);
-  await click(page.locator(".level-chip", { hasText: "MODERATE" }));
   await say("Click a risk level to list its recent transactions.", 3500);
   await click(page.locator(".level-chip", { hasText: "MODERATE" }));
   await page.locator('[aria-label="Model quality"]').scrollIntoViewIfNeeded();
-  await say("Model quality, honestly: recall sits beside precision. It misses things, and the screen says so.", 6000);
+  await say("Model quality, honestly: recall sits beside precision. It misses things, and the screen says so.", 4500);
   await shot("03-model");
   await top();
 
@@ -141,51 +140,63 @@ try {
   await page.getByLabel(/start at event/i).fill(String(RING_START));
   await say(`Starting at event ${RING_START}, just before a planted ring of coordinated accounts.`, 3500);
   await click(page.getByRole("button", { name: /start replay/i }));
-  await say("Scored events slide in. The first ring payments look ordinary on their own.", 7000);
+  await say("Scored events stream into the grid. The first ring payments look ordinary on their own.", 7000);
   await shot("04-live-early");
 
   const firstHigh = await fastForward("waiting for the ring to be flagged", 6, async () => {
     await caption("Several ring accounts now share a device, and their scores climb (replay sped up).");
-    await page.locator("tr.row-pulse td a").first().waitFor({ timeout: 240000 });
-    return page.locator("tr.row-pulse td a").first().innerText();
+    await page.locator(".live-grid .ag-row.row-pulse a").first().waitFor({ timeout: 240000 });
+    return page.locator(".live-grid .ag-row.row-pulse a").first().innerText();
   });
   log("first HIGH+ ring transaction:", firstHigh);
-  await page.locator("tr.row-pulse").first().scrollIntoViewIfNeeded();
+  await page.locator(".live-grid .ag-row.row-pulse").first().scrollIntoViewIfNeeded({ timeout: 2000 }).catch(() => {});
   await say("Ring rows turn HIGH, pulse, and are recommended Review. Nothing is blocked automatically.", 7000);
   await shot("05-live-high");
 
-  // The Live page keeps only the newest 200 rows, so grab a row from inside the flagged cluster the moment one appears.
+  // The grid renders only the rows on screen, so grab a row from inside the flagged cluster the moment one appears.
   const clusterRowId = () => page.evaluate(() => {
-    const r = [...document.querySelectorAll("tr.row-pulse")].find((tr) => tr.lastElementChild && tr.lastElementChild.textContent.trim() !== "—");
-    return r ? { id: r.querySelector("a")?.textContent ?? null, cluster: r.lastElementChild.textContent.trim() } : null;
+    for (const row of document.querySelectorAll(".live-grid .ag-row.row-pulse")) {
+      const c = row.querySelector('[col-id="cluster"]')?.textContent?.trim();
+      if (c && c !== "\u2014") return { id: row.querySelector("a")?.textContent ?? null, cluster: c };
+    }
+    return null;
   });
   await fastForward("waiting for the cluster to be flagged", 6, async () => {
     await caption("Enough accounts now share the device for the cluster to be flagged (replay sped up).");
-    await page.waitForFunction(() => [...document.querySelectorAll("tr.row-pulse")].some((tr) => tr.lastElementChild && tr.lastElementChild.textContent.trim() !== "—"),
-      null, { timeout: 150000 }).catch(() => {});
+    await page.waitForFunction(() => [...document.querySelectorAll(".live-grid .ag-row.row-pulse")].some((r) => {
+      const c = r.querySelector('[col-id="cluster"]')?.textContent?.trim(); return !!c && c !== "\u2014"; }), null, { timeout: 150000 }).catch(() => {});
   });
   const found = await clusterRowId();
   const flaggedHigh = found?.id ?? null;
   log("flagged-cluster row:", found);
   if (found) {
-    await page.locator("tr.row-pulse", { has: page.locator(`a:text-is("${found.id}")`) }).first().scrollIntoViewIfNeeded();
+    await page.locator(".live-grid .ag-row.row-pulse", { has: page.locator(`a:text-is("${found.id}")`) }).first().scrollIntoViewIfNeeded({ timeout: 2000 }).catch(() => {});
     await say("Cluster flagged: the Cluster column now names it. This is the shared-device pattern, caught as it forms.", 6500);
     await shot("05b-live-cluster");
   }
 
-  const legitRow = page.locator("tr", { has: page.locator(`a:text-is("${LEGIT_ID}")`) });
-  let sawLegit = true;
-  await fastForward("waiting for the legitimate-but-unusual purchase", 14, async () => {
+  // AG Grid: search while events keep streaming in; the filter holds and the counter updates
+  const search = page.getByRole("searchbox", { name: /search events/i });
+  await search.pressSequentially("CL_", { delay: FAST ? 10 : 90 });
+  await say("The feed is an AG Grid table. Search or filter any column while events keep streaming in: the filter holds and the counter updates.", 7500);
+  await shot("05c-live-filtered");
+  await search.fill("");
+
+  let sawLegit = false;
+  await fastForward("waiting for the replay to finish", 14, async () => {
     await caption("The replay continues (sped up).");
-    await legitRow.first().waitFor({ timeout: 300000 }).catch(() => { sawLegit = false; });
+    await page.getByText("Replay idle").first().waitFor({ timeout: 300000 }).catch(() => {});
   });
+  await search.pressSequentially(LEGIT_ID, { delay: FAST ? 10 : 70 });
+  const legitRow = page.locator(".live-grid .ag-row", { has: page.locator(`a:text-is("${LEGIT_ID}")`) });
+  sawLegit = await legitRow.first().waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
   if (sawLegit) {
-    await legitRow.first().scrollIntoViewIfNeeded();
     const text = (await legitRow.first().innerText()).replace(/\s+/g, " ");
     log("legit row:", text);
-    await say(`A legitimate but unusual purchase arrives: ${/MODERATE/.test(text) ? "rated MODERATE, action Monitor" : "rated per the row shown"}. Unusual is not fraud.`, 6500);
+    await say(`Search finds the legitimate but unusual purchase: ${/MODERATE/.test(text) ? "rated MODERATE, action Monitor" : "rated as shown"}. Unusual is not fraud.`, 6000);
     await shot("06-live-legit");
-  } else log("legit purchase did not arrive in time; skipping its caption");
+  } else log("legit purchase not found; skipping its caption");
+  await search.fill("");
   await page.getByRole("button", { name: /stop replay/i }).click().catch(() => {});
   const subject = flaggedHigh ?? firstHigh;
   log("investigation subject:", subject, flaggedHigh ? "(in a flagged cluster)" : "(no flagged-cluster row seen; using the first HIGH row)");
@@ -201,10 +212,10 @@ try {
   await page.locator(".react-flow__node").first().waitFor({ timeout: 60000 });
   log("graph nodes drawn:", await page.locator(".react-flow__node").count());
   await page.locator('[aria-label="Graph canvas"]').scrollIntoViewIfNeeded();
-  await say("Border colour shows risk, and every node also says its level in words. Edges carry the transaction count.", 6500);
+  await say("Border colour shows risk, and every node also says its level in words. Edges carry the transaction count.", 5000);
   await shot("07-graph");
   await click(page.locator(".react-flow__node", { hasText: "▲ account" }).first());
-  await say("Click an account to pull in its neighbours. The explorer caps at 200 nodes and says when it cuts.", 6500);
+  await say("Click an account to pull in its neighbours. The explorer caps at 200 nodes and says when it cuts.", 5000);
   await shot("08-graph-expanded");
 
   // ---------------------------------------------------------------- investigation
@@ -220,13 +231,21 @@ try {
   await say("Risk factors, behaviour reasons, and the model's own explanation (SHAP) are all here.", 5500);
   await page.locator('section[aria-label="Model explanation"]').scrollIntoViewIfNeeded();
   await say("Each bar is a feature's contribution to the model's score. Contributions describe the model, not causes of fraud.", 6500);
-  const riskText = (await page.locator("section[aria-label=\"Risk assessment\"]").innerText()).replace(/s+/g, " ");
+  const riskText = (await page.locator("section[aria-label=\"Risk assessment\"]").innerText()).replace(/\s+/g, " ");
   const recommendedHold = /Hold recommended/i.test(riskText);
   log("risk panel for the subject:", riskText.slice(0, 120));
   await shot("09-investigation");
   await top();
-  await click(page.locator(`input[aria-label="Select ${subject}"]`));
-  await click(page.getByRole("button", { name: /open case from selected/i }));
+  await page.locator(".alerts-grid").scrollIntoViewIfNeeded();
+  await click(page.locator('.alerts-grid .ag-header-cell[col-id="level"]'));
+  await click(page.locator('.alerts-grid .ag-header-cell[col-id="level"]'));
+  await say("The alert list is an AG Grid triage table: sort by severity, filter, search, tick rows.", 4500);
+  await page.getByRole("searchbox", { name: /search alerts/i }).pressSequentially(subject, { delay: FAST ? 10 : 70 });
+  await page.waitForTimeout(dwell(500));
+  await click(page.locator(".alerts-grid .ag-row .ag-selection-checkbox").first());
+  await say("Tick the alerts to work, then open one case from the selection.", 3500);
+  await shot("09b-triage");
+  await click(page.getByRole("button", { name: /open case from \d+ selected/i }));
   await page.locator('section[aria-label="Case"]').waitFor({ timeout: 30000 });
   await say("Alerts become cases. Analysts add notes and decide.", 3500);
   await page.getByLabel(/new note/i).fill("Ring pattern: several accounts, one device, same merchants. Needs review.");
@@ -261,10 +280,10 @@ try {
   await top();
   await page.getByLabel("Data source").selectOption("paypal_sandbox");
   await click(page.locator(".nav a", { hasText: "Live Monitoring" }));
-  const ppRow = page.locator("tbody tr", { has: page.locator('a:text-matches("^PP-")') }).first();
+  const ppRow = page.locator(".live-grid .ag-row", { has: page.locator('a:text-matches("^PP-")') }).first();
   const hasPayPal = await ppRow.waitFor({ timeout: 15000 }).then(() => true).catch(() => false);
   if (hasPayPal) {
-    await ppRow.scrollIntoViewIfNeeded();
+    await ppRow.scrollIntoViewIfNeeded({ timeout: 2000 }).catch(() => {});
     const ppText = (await ppRow.innerText()).replace(/\s+/g, " ");
     log("paypal row:", ppText);
     await say("Data source: PayPal Sandbox. A real Sandbox payment, delivered by signed webhook and verified with PayPal before scoring (received 11 Nov 2026).", 7500);
