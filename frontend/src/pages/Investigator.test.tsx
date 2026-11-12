@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { ApiError } from "../api/client";
@@ -91,6 +91,17 @@ describe("AI Investigator", () => {
     await userEvent.click(screen.getByRole("button", { name: /^send$/i }));
     expect(await screen.findByText(/at most 8000/i)).toBeInTheDocument();
     expect(client.calls).toHaveLength(0);
+  });
+
+  it("keeps the conversation in its own scrollable log, scrolled to the newest message", async () => {
+    setup();
+    const log = screen.getByRole("log", { name: /conversation/i });
+    expect(log).toHaveClass("chat-scroll");
+    Object.defineProperty(log, "scrollHeight", { configurable: true, value: 900 });
+    await ask("hello");
+    await screen.findByText("The transaction looks unusual.");
+    expect(within(log).getByText("The transaction looks unusual.")).toBeInTheDocument();
+    await waitFor(() => expect(log.scrollTop).toBe(900));
   });
 
   it("a new conversation clears the history", async () => {

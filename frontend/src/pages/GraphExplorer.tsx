@@ -60,7 +60,7 @@ export function GraphExplorer() {
       <PageHeader title="Graph Explorer" subtitle={`Linked accounts, devices and merchants · Data source: ${SOURCE_LABELS[source]}`} />
       <div className="split">
         <div className="grid">
-          <section className="panel" aria-label="Flagged clusters">
+          <section className="panel list-panel list-short" aria-label="Flagged clusters">
             <h2>Flagged clusters</h2>
             {clusters.isPending ? <Spinner /> : clusters.isError ? <ErrorState error={clusters.error} onRetry={() => clusters.refetch()} /> :
               clusters.data.length === 0 ? <EmptyState title="No flagged clusters for this data source" /> : (
@@ -68,7 +68,7 @@ export function GraphExplorer() {
                   {clusters.data.map((c) => (
                     <li key={c.cluster_id}>
                       <button className="btn" onClick={() => show({ kind: "cluster", id: c.cluster_id })}>
-                        {c.cluster_id} · {c.n_accounts} accounts · {c.signals.join(", ") || "no signals"}
+                        <span title={c.signals.join(", ") || "no signals"}>{c.cluster_id} · {c.n_accounts} accounts · {c.signals.length} signals</span>
                       </button>
                     </li>
                   ))}

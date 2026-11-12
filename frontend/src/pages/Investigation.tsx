@@ -41,7 +41,7 @@ export function Investigation() {
     <div className="grid">
       <PageHeader title="Investigation Workspace" subtitle="Work alerts into cases, with the evidence beside you" />
       <div className="split">
-        <section className="panel" aria-label="Alerts and cases">
+        <section className="panel list-panel" aria-label="Alerts and cases">
           <div className="row" role="tablist">
             <button role="tab" aria-selected={tab === "alerts"} className="btn" onClick={() => setTab("alerts")}>Alerts</button>
             <button role="tab" aria-selected={tab === "cases"} className="btn" onClick={() => setTab("cases")}>Cases</button>

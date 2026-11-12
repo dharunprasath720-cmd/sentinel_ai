@@ -36,7 +36,7 @@ export function GraphCanvas({ graph, onExpand }: { graph: GraphPayload; onExpand
   }, [graph]);
 
   return (
-    <div style={{ height: 600 }} aria-label="Graph canvas">
+    <div className="graph-canvas" aria-label="Graph canvas">
       <ReactFlow nodes={nodes} edges={edges} fitView colorMode="dark" nodesConnectable={false}
         onNodeClick={(_, node) => { if (node.data.kind === "account") onExpand(String(node.data.accountId)); }}>
         <Background /><Controls showInteractive={false} />

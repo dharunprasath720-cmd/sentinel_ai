@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiError } from "../api/client";
 import type { ChatResult } from "../api/types";
 import { canAct } from "../auth/roles";
@@ -52,6 +52,8 @@ export function Investigator() {
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const logRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { const el = logRef.current; if (el) el.scrollTop = el.scrollHeight; }, [turns, busy]);
 
   if (!canAct(role)) {
     return <div className="grid"><PageHeader title="AI Investigator" subtitle="Questions answered from retrieved evidence" />
@@ -80,13 +82,15 @@ export function Investigator() {
   }
 
   return (
-    <div className="grid">
+    <div className="grid chat-page">
       <PageHeader title="AI Investigator" subtitle="Questions answered from retrieved evidence">
         <button className="btn" onClick={() => { setTurns([]); setError(null); }}>New conversation</button>
       </PageHeader>
       <div className="muted">Answers come only from retrieved evidence and are for analyst review. The investigator
         never decides that something is fraud and never takes an action.</div>
-      {turns.map((t, i) => <Reply key={i} turn={t} />)}
+      <div className="chat-scroll" role="log" aria-label="Conversation" ref={logRef}>
+        {turns.map((t, i) => <Reply key={i} turn={t} />)}
+      </div>
       {error ? <div role="alert" className="panel error">{error}</div> : null}
       <form className="grid" onSubmit={(e) => { e.preventDefault(); void send(); }}>
         <label>Your question

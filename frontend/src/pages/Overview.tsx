@@ -60,7 +60,7 @@ function RecentTransactions({ level }: { level: Level | null }) {
       <h2>{title}</h2>
       {q.isPending ? <Spinner /> : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> :
         q.data.length === 0 ? <EmptyState title={level ? `Nothing rated ${level} for this data source` : "Nothing rated HIGH or CRITICAL for this data source"} /> : (
-          <table>
+          <div className="table-scroll short"><table>
             <thead><tr><th>Transaction</th><th>Time</th><th>Amount</th><th>Level</th></tr></thead>
             <tbody>
               {q.data.map((t) => (
@@ -70,7 +70,7 @@ function RecentTransactions({ level }: { level: Level | null }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
     </section>
   );
@@ -98,7 +98,7 @@ export function Overview() {
             <MetricTile label="Open cases" value={<CountUp value={q.data.open_cases} format={fmtInt} />} />
             <MetricTile label="Flagged clusters" value={<CountUp value={q.data.flagged_clusters} format={fmtInt} />} />
             <MetricTile label="Suspicious value" value={<CountUp value={q.data.suspicious_value} format={fmtMoney} />}
-              hint="Amounts of HIGH and CRITICAL transactions. Suspicious, not confirmed fraud." />
+              hint="Suspicious, not confirmed fraud" tooltip="Amounts of HIGH and CRITICAL transactions. Suspicious, not confirmed fraud." />
           </div>
           {q.data.transactions.total === 0 ? (
             <EmptyState title="No transactions for this data source yet"
@@ -125,9 +125,9 @@ export function Overview() {
                   ))}
                 </div>
                 <div className="muted small">
-                  {scale === "log" ? "Log scale keeps small groups visible next to LOW. " : ""}Click a level to list its recent transactions.
+                  {scale === "log" ? "Log scale keeps small groups visible. " : ""}Click a level to filter the list below.
                 </div>
-                <ResponsiveContainer width="100%" height={230}>
+                <ResponsiveContainer width="100%" height={150}>
                   <BarChart data={LEVELS.map((l) => ({ level: l, count: q.data.transactions.by_level[l] || undefined }))}
                             margin={{ top: 18 }}>
                     <CartesianGrid stroke="#243252" /><XAxis dataKey="level" stroke="#94a3c0" />
@@ -143,14 +143,14 @@ export function Overview() {
               <section className="panel" aria-label="Daily volume">
                 <h2>Daily volume and HIGH+ count</h2>
                 <ul className="legend" aria-label="Daily chart legend">
-                  <li><span className="swatch" style={{ background: "#6aa5ff" }} aria-hidden /> All transactions</li>
+                  <li><span className="swatch" style={{ background: "#38bdf8" }} aria-hidden /> All transactions</li>
                   <li><span className="swatch" style={{ background: "#ff5d6c" }} aria-hidden /> HIGH + CRITICAL</li>
                 </ul>
-                <ResponsiveContainer width="100%" height={250}>
+                <ResponsiveContainer width="100%" height={165}>
                   <LineChart data={q.data.daily}>
                     <CartesianGrid stroke="#243252" /><XAxis dataKey="date" stroke="#94a3c0" />
                     <YAxis stroke="#94a3c0" /><Tooltip />
-                    <Line dataKey="transactions" name="All transactions" stroke="#6aa5ff" dot={false} />
+                    <Line dataKey="transactions" name="All transactions" stroke="#38bdf8" dot={false} />
                     <Line dataKey="high_plus" name="HIGH + CRITICAL" stroke="#ff5d6c" dot={false} />
                   </LineChart>
                 </ResponsiveContainer>

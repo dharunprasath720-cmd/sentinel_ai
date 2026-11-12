@@ -48,7 +48,7 @@ export function CasePanel({ caseId }: { caseId: number }) {
   }
 
   return (
-    <div className="grid">
+    <div className="grid grid-3 case-grid">
       <section className="panel" aria-label="Case">
         <h2>Case #{data.id}</h2>
         <div className="row">

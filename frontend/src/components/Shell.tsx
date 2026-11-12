@@ -1,7 +1,7 @@
 import { motion, useReducedMotion } from "framer-motion";
-import { Search } from "lucide-react";
+import { LogOut, Search, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useSession } from "../auth/session";
 import { SOURCE_LABELS, useSource } from "../source";
 import type { Source } from "../api/types";
@@ -47,7 +47,10 @@ export function Shell() {
   return (
     <div className="app">
       <header className="header">
-        <span className="brand">SENTINEL</span>
+        <Link to="/" className="brand" aria-label="SENTINEL home">
+          <span className="brand-mark" aria-hidden><ShieldCheck size={24} /></span>
+          <span className="brand-text"><span className="brand-title">SENTINEL</span><span className="brand-sub">Fraud intelligence</span></span>
+        </Link>
         <nav className="nav">
           {NAV.map((n) => (
             <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => (isActive ? "active" : "")}>
@@ -59,8 +62,8 @@ export function Shell() {
           <Search size={14} aria-hidden /> <span className="muted">Search</span> <kbd>Ctrl K</kbd>
         </button>
         <SourceSelector />
-        <span className="pill">{username} · {role}</span>
-        <button className="btn" onClick={logout}>Sign out</button>
+        <span className="pill"><span className="who">{username} · </span>{role}</span>
+        <button className="btn signout" aria-label="Sign out" onClick={logout}><LogOut size={16} aria-hidden /> <span className="so-label">Sign out</span></button>
       </header>
       <main className="page">
         <ErrorBoundary key={location.key}>

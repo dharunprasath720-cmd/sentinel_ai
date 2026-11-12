@@ -125,9 +125,11 @@ export function LiveMonitoring({ streamFetch }: { streamFetch?: typeof fetch }) 
       </PageHeader>
       {stream.paused ? <div className="muted">Paused: new events are not shown.</div> : null}
 
+      <div className="live-top">
+      <section className="panel" aria-label="Live counters">
       <h2>Live counters (all data sources)</h2>
       {metrics.isError ? <ErrorState error={metrics.error} /> : (
-        <div className="grid grid-5">
+        <div className="mini-tiles">
           <MetricTile label="Processed" value={m ? fmtInt(m.processed) : "—"} />
           <MetricTile label="Alerts" value={m ? fmtInt(m.alerts) : "—"} />
           <MetricTile label="Latency p50" value={fmtMs(m?.p50_ms)} />
@@ -137,14 +139,15 @@ export function LiveMonitoring({ streamFetch }: { streamFetch?: typeof fetch }) 
             hint={m ? `${fmtInt(m.simulator.sent)} sent · ${fmtInt(m.simulator.errors)} errors` : undefined} />
         </div>
       )}
-
+      </section>
       <SimulatorPanel />
+      </div>
 
-      <section className="panel" aria-label="Scored events">
+      <section className="panel table-panel" aria-label="Scored events">
         <h2>Scored events</h2>
         {initial.isPending ? <Spinner /> : initial.isError ? <ErrorState error={initial.error} onRetry={() => initial.refetch()} /> :
           rows.length === 0 ? <EmptyState title="No events yet for this data source" hint="Start the replay simulator to stream scored events." /> : (
-            <table>
+            <div className="table-scroll"><table>
               <thead><tr><th>Transaction</th><th>Time</th><th>Account</th><th>Amount</th><th>Level</th><th>Action</th><th>Cluster</th></tr></thead>
               <tbody>
                 {rows.map((r) => (
@@ -158,7 +161,7 @@ export function LiveMonitoring({ streamFetch }: { streamFetch?: typeof fetch }) 
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
       </section>
     </div>

@@ -28,7 +28,7 @@ export function TransactionPanel({ txnId }: { txnId: string }) {
   const maxShap = Math.max(0.0001, ...(explanation?.contributions ?? []).map((c) => Math.abs(c.shap)));
 
   return (
-    <div className="grid">
+    <div className="grid grid-2 txn-grid">
       <section className="panel" aria-label="Transaction">
         <h2>Transaction {txnId}</h2>
         <table><tbody>
@@ -93,7 +93,7 @@ export function TransactionPanel({ txnId }: { txnId: string }) {
       </section>
 
       {canAct(role) ? (
-        <div className="grid">
+        <div className="grid span-all">
           <div className="row">
             <button className="btn btn-primary" disabled={report.isPending} onClick={() => report.mutate()}>Generate AI report</button>
             {report.isPending ? <Spinner label="Investigating" /> : null}

@@ -172,3 +172,106 @@ tr.row-pulse { animation: row-in 0.35s ease-out, row-pulse 1.6s ease-out; }
 
 .nav a { padding: 0.35rem 0.45rem; }
 .header select { max-width: 10.5rem; }
+
+/* ================================================================ redesign
+   Fonts (bundled, open source): Source Serif 4 for titles, Inter for everything else.
+   A second blue (sky) joins the royal/accent blues; everything is rounder; layouts are compact so pages fit the screen. */
+:root {
+  --font: "Inter Variable", system-ui, "Segoe UI", sans-serif;
+  --font-head: "Source Serif 4 Variable", Georgia, serif;
+  --bg: #060c1b;
+  --panel: #0d1730;
+  --panel-2: #132442;
+  --border: #1f3358;
+  --accent: #5b9dff;
+  --royal: #2f6bff;
+  --sky: #38bdf8;
+  --radius: 16px;
+}
+body { font-family: var(--font); font-size: 15px; font-feature-settings: "tnum" 1; background: radial-gradient(1200px 500px at 85% -10%, rgba(47, 107, 255, 0.16), transparent 60%), var(--bg); }
+h1, h2, h3, .login-hero h1, .login-card h2 { font-family: var(--font-head); }
+h1 { font-size: 1.55rem; }
+h2 { font-size: 1.05rem; color: #d6e6ff; margin-bottom: 0.4rem; }
+h3 { font-size: 0.92rem; margin: 0.5rem 0 0.2rem; }
+input, select, textarea, .btn, .chip, .pill { border-radius: 10px; }
+.pill { border-radius: 999px; }
+.btn { padding: 0.4rem 0.95rem; }
+.btn:hover:not(:disabled) { border-color: var(--sky); }
+.btn-primary, .btn-active { background: linear-gradient(135deg, var(--royal), var(--sky)); border-color: transparent; color: #fff; }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--sky); outline-offset: 1px; }
+.panel { border-radius: var(--radius); padding: 0.8rem 1rem; background: linear-gradient(180deg, rgba(56, 189, 248, 0.06), transparent 40%), var(--panel); }
+a { color: var(--sky); }
+
+/* header: a brand that is clearly not a menu item, and menu items that look like buttons */
+.header { gap: 0.9rem; padding: 0.6rem 1.1rem; background: linear-gradient(180deg, #10204a, #0a1530); border-bottom: 1px solid var(--border); }
+.brand { display: flex; align-items: center; gap: 0.75rem; padding-right: 1.2rem; margin-right: 0.2rem; border-right: 1px solid var(--border); color: inherit; text-decoration: none; font-size: inherit; letter-spacing: 0; }
+.brand:hover { text-decoration: none; }
+.brand-mark { width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, var(--royal), var(--sky)); box-shadow: 0 6px 20px rgba(47, 107, 255, 0.5); }
+.brand-text { display: grid; line-height: 1.05; }
+.brand-title { font-family: var(--font-head); font-size: 1.75rem; font-weight: 700; letter-spacing: 0.1em; background: linear-gradient(90deg, #ffffff, #b4dcff 65%, var(--sky)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.brand-sub { font-size: 0.66rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--sky); margin-top: 0.25rem; font-weight: 600; }
+.nav { flex: 0 1 auto; gap: 0.5rem; }
+.nav a { padding: 0.45rem 0.95rem; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); color: #bccbe8; font-weight: 500; font-size: 0.88rem; white-space: nowrap; }
+.nav a:hover { border-color: var(--sky); color: #fff; text-decoration: none; }
+.nav a.active { background: linear-gradient(135deg, var(--royal), var(--sky)); border-color: transparent; color: #fff; box-shadow: 0 4px 14px rgba(47, 107, 255, 0.45); }
+.search-btn { margin-left: auto; }
+
+/* compact pages */
+.page { padding: 0.8rem 1.1rem 1rem; max-width: 1560px; }
+.grid { gap: 0.8rem; }
+.page-header { padding-bottom: 0.5rem; align-items: center; }
+.page-header h1 { font-size: 1.45rem; }
+.page-subtitle { margin-top: 0; font-size: 0.88rem; }
+.grid-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.grid-2 { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+.grid-3 { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.tile { padding: 0.55rem 0.85rem; }
+.panel.tile { border-top: 2px solid var(--sky); }
+.tile-label { font-size: 0.76rem; }
+.tile-value { font-size: 1.5rem; font-weight: 650; font-family: var(--font); line-height: 1.2; }
+.tile-hint { font-size: 0.7rem; line-height: 1.25; }
+th, td { padding: 0.32rem 0.55rem; font-size: 0.86rem; }
+.table-scroll { overflow: auto; max-height: calc(100vh - 340px); min-height: 180px; border-radius: 10px; }
+.table-scroll.short { max-height: 200px; min-height: 0; }
+.table-scroll thead th { position: sticky; top: 0; background: var(--panel); z-index: 1; }
+.live-top { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 0.8rem; align-items: stretch; }
+.mini-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
+.mini-tiles .tile { background: var(--panel-2); border: 1px solid var(--border); border-top: 2px solid var(--sky); border-radius: 12px; padding: 0.4rem 0.7rem; }
+.mini-tiles .tile-value { font-size: 1.15rem; }
+.list-panel { max-height: calc(100vh - 200px); overflow: auto; }
+.list-short { max-height: calc(100vh - 440px); min-height: 190px; }
+.split { grid-template-columns: minmax(240px, 300px) minmax(0, 1fr); gap: 0.8rem; }
+.span-all { grid-column: 1 / -1; }
+.txn-grid .panel, .case-grid .panel { padding: 0.65rem 0.85rem; }
+.txn-grid table th, .txn-grid table td { padding: 0.18rem 0.45rem; font-size: 0.82rem; }
+.txn-grid ul { margin: 0.2rem 0; padding-left: 1.1rem; }
+.graph-canvas { height: calc(100vh - 240px); min-height: 380px; border-radius: 12px; overflow: hidden; }
+.chat-scroll { overflow: auto; max-height: calc(100vh - 380px); min-height: 160px; display: grid; gap: 0.6rem; align-content: start; padding-right: 0.2rem; }
+.login-card { border-radius: 20px; }
+.login-mark { border-radius: 16px; }
+@media (max-width: 1100px) { .live-top { grid-template-columns: 1fr; } .grid-5 { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); } }
+
+/* fit the header on one row at laptop widths, and tighten the Overview */
+.header { gap: 0.6rem; }
+.brand { padding-right: 0.9rem; gap: 0.65rem; }
+.brand-title { font-size: 1.55rem; }
+.nav { gap: 0.4rem; }
+.nav a { padding: 0.4rem 0.8rem; font-size: 0.85rem; }
+.header select { max-width: 9.5rem; }
+@media (max-width: 1500px) { .search-btn kbd { display: none; } .header .pill { padding: 0.1rem 0.5rem; } }
+.level-chip { padding: 0.12rem 0.6rem; font-size: 0.84rem; gap: 0.35rem; }
+.level-chip + .level-chip { margin-left: 0; }
+
+/* header: the sign-out label and the username give way first on laptop widths */
+.signout { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.7rem; }
+@media (max-width: 1500px) { .signout .so-label, .header .pill .who { display: none; } }
+/* graph: navy canvas instead of neutral grey; tidy cluster buttons */
+.graph-canvas .react-flow { --xy-background-color: #091325; --xy-background-color-default: #091325; --xy-background-pattern-dots-color-default: #1d3358; background: #091325; }
+.list-panel button.btn { width: 100%; text-align: left; border-radius: 12px; font-size: 0.84rem; padding: 0.4rem 0.7rem; }
+.list-panel li { list-style: none; margin-bottom: 0.35rem; }
+.list-panel ul { padding-left: 0; margin: 0.4rem 0 0; }
+
+/* chat: the conversation fills the screen, the question box stays at the bottom */
+.chat-page { display: flex; flex-direction: column; height: calc(100vh - 110px); min-height: 460px; }
+.chat-page .chat-scroll { flex: 1 1 auto; max-height: none; min-height: 0; background: rgba(56, 189, 248, 0.03); border: 1px solid var(--border); border-radius: 14px; padding: 0.6rem; }
+.chat-page form { flex: 0 0 auto; }
