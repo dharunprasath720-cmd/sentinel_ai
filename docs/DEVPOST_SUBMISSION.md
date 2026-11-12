@@ -39,6 +39,8 @@ SENTINEL AI scores payments as they arrive and helps an analyst decide what to d
 
 The dashboard has five pages: Overview, Live Monitoring, Investigation Workspace, Graph Explorer and AI Investigator.
 
+**How AG Grid is used.** Fraud triage is a table problem, so the two places an analyst actually works are AG Grid tables. The live feed receives scored events as row updates keyed by transaction id, so an analyst can sort, filter any column or search while new events keep streaming in, and the view does not reset. Each row carries an in-cell risk bar and a severity badge, HIGH and CRITICAL rows are highlighted, and the filtered view exports to CSV. In Investigation, open alerts appear in a triage grid: sort by severity, filter, tick several rows and open a single case from the selection. Only the free Community edition is used.
+
 ## How PayPal is used
 
 - **OAuth 2.0** client-credentials tokens against the Sandbox.
@@ -116,11 +118,12 @@ An approved-case refund workflow through PayPal, evaluation on a public dataset,
 | **LightGBM, scikit-learn, SHAP** | Fraud probability model, baselines, anomaly detection, calibration and explanations |
 | **NetworkX** | Account, device and merchant graph; cluster detection |
 | **FastAPI, SQLAlchemy, SQLite** | API, persistence |
+| **AG Grid Community (MIT)** | The analyst's working surface: the live event feed (streaming rows keyed by transaction id, so filters and sort survive new events, in-cell risk bars, quick search, CSV export of the filtered view) and the alert triage grid (multi-select rows, open one case from the selection). Free tier only; no Enterprise features |
 | **React, TypeScript, Vite, Recharts, React Flow, Framer Motion** | Dashboard |
 | **Playwright, ffmpeg** | Scripted, captioned demo recording |
 | **cloudflared** | Public tunnel so PayPal Sandbox could reach the local webhook during testing |
 
-**"Built with" tags:** python, fastapi, react, typescript, paypal, claude, anthropic, lightgbm, scikit-learn, shap, networkx, sqlite, vite
+**"Built with" tags:** python, fastapi, react, typescript, paypal, claude, anthropic, lightgbm, scikit-learn, shap, networkx, sqlite, vite, ag-grid
 
 ## Run instructions (if the form asks)
 

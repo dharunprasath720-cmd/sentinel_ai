@@ -51,15 +51,14 @@ describe("LiveMonitoring page", () => {
     await screen.findByText("OLD-HIGH");
     await waitFor(() => expect(screen.getByText(/connected/i)).toBeInTheDocument());
     act(() => s.push(live("NEW-1")));
-    await screen.findByText("NEW-1");
-    const rows = screen.getAllByRole("row");
-    expect(within(rows[1]).getByText("NEW-1")).toBeInTheDocument(); // rows[0] is the header
+    const newest = (await screen.findByText("NEW-1")).closest<HTMLElement>('[role="row"]')!;
+    expect(newest).toHaveAttribute("aria-rowindex", "2"); // the first data row (the header is row 1)
   });
 
   it("marks HIGH+ rows and a click opens the investigation", async () => {
     setup();
-    const high = (await screen.findByText("OLD-HIGH")).closest("tr")!;
-    const low = screen.getByText("OLD-LOW").closest("tr")!;
+    const high = (await screen.findByText("OLD-HIGH")).closest<HTMLElement>('[role="row"]')!;
+    const low = screen.getByText("OLD-LOW").closest<HTMLElement>('[role="row"]')!;
     expect(high).toHaveClass("row-high-plus");
     expect(low).not.toHaveClass("row-high-plus");
     await userEvent.click(within(high).getByText("ACC_OLD-HIGH"));
@@ -177,12 +176,12 @@ describe("LiveMonitoring page", () => {
     await screen.findByText("OLD-HIGH");
     await waitFor(() => expect(screen.getByText(/connected/i)).toBeInTheDocument());
     act(() => { s.push(live("NEW-H")); s.push(live("NEW-L", { risk_level: "LOW", alert: false })); });
-    const high = (await screen.findByText("NEW-H")).closest("tr")!;
-    const low = (await screen.findByText("NEW-L")).closest("tr")!;
+    const high = (await screen.findByText("NEW-H")).closest<HTMLElement>('[role="row"]')!;
+    const low = (await screen.findByText("NEW-L")).closest<HTMLElement>('[role="row"]')!;
     expect(high).toHaveClass("row-new", "row-pulse");
     expect(low).toHaveClass("row-new");
     expect(low).not.toHaveClass("row-pulse");
-    expect(screen.getByText("OLD-HIGH").closest("tr")).not.toHaveClass("row-new");
+    expect(screen.getByText("OLD-HIGH").closest<HTMLElement>('[role="row"]')).not.toHaveClass("row-new");
   });
 
   it("shows how many events arrived in the last 10 seconds", async () => {
@@ -191,5 +190,42 @@ describe("LiveMonitoring page", () => {
     await waitFor(() => expect(screen.getByText(/connected/i)).toBeInTheDocument());
     act(() => { s.push(live("R-1")); s.push(live("R-2")); });
     expect(await screen.findByText(/2 events in the last 10 s/i)).toBeInTheDocument();
+  });
+
+  it("a quick search narrows the events, and the counter says how many are shown", async () => {
+    setup();
+    await screen.findByText("OLD-HIGH");
+    expect(screen.getByText(/showing 2 of 2 events/i)).toBeInTheDocument();
+    await userEvent.type(screen.getByRole("searchbox", { name: /search events/i }), "OLD-HIGH");
+    await waitFor(() => expect(screen.queryByText("OLD-LOW")).toBeNull());
+    expect(screen.getByText("OLD-HIGH")).toBeInTheDocument();
+    expect(screen.getByText(/showing 1 of 2 events/i)).toBeInTheDocument();
+  });
+
+  it("a filter stays applied while new events keep streaming in", async () => {
+    const { s } = setup();
+    await screen.findByText("OLD-HIGH");
+    await waitFor(() => expect(screen.getByText(/connected/i)).toBeInTheDocument());
+    await userEvent.type(screen.getByRole("searchbox", { name: /search events/i }), "KEEP");
+    await waitFor(() => expect(screen.queryByText("OLD-HIGH")).toBeNull());
+    act(() => { s.push(live("KEEP-1")); s.push(live("DROP-2")); });
+    expect(await screen.findByText("KEEP-1")).toBeInTheDocument();
+    expect(screen.queryByText("DROP-2")).toBeNull();
+    expect(screen.getByText(/showing 1 of 4 events/i)).toBeInTheDocument();
+  });
+
+  it("exports the filtered view as a CSV file", async () => {
+    const Real = window.MouseEvent;
+    vi.stubGlobal("MouseEvent", class extends Real { constructor(type: string, init?: MouseEventInit) { super(type, { ...init, view: undefined }); } });
+    Object.assign(URL, { createObjectURL: vi.fn(() => "blob:csv"), revokeObjectURL: vi.fn() });
+    const links: HTMLAnchorElement[] = [];
+    const dispatch = vi.spyOn(HTMLAnchorElement.prototype, "dispatchEvent").mockImplementation(function (this: HTMLAnchorElement) { links.push(this); return true; });
+    setup();
+    await screen.findByText("OLD-HIGH");
+    await userEvent.click(screen.getByRole("button", { name: /export csv/i }));
+    await waitFor(() => expect(links.length).toBeGreaterThan(0));
+    expect(links[0].download).toBe("sentinel-live-events.csv");
+    dispatch.mockRestore();
+    vi.unstubAllGlobals();
   });
 });

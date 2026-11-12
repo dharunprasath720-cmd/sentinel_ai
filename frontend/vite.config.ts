@@ -9,5 +9,6 @@ const proxied = ["/auth", "/alerts", "/cases", "/audit", "/agent", "/stream", "/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: { proxy: Object.fromEntries(proxied.map((p) => [p, api])) },
-  test: { environment: "jsdom", globals: true, setupFiles: ["./src/test-setup.ts"] },
+  // AG Grid is slow to render in jsdom, and slower still while the machine is busy
+  test: { environment: "jsdom", globals: true, setupFiles: ["./src/test-setup.ts"], testTimeout: 15000 },
 });

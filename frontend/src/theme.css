@@ -319,3 +319,34 @@ tr.row-pulse { animation: row-in 180ms var(--ease-out), row-pulse 1400ms var(--e
   .btn:active:not(:disabled), .nav a:active, .chip:active, .level-chip:active, .icon-btn:active { transform: none; }
   .dialog { transition: opacity 180ms var(--ease-out); @starting-style { opacity: 0; transform: none; } }
 }
+
+/* ================================================================ AG Grid (Community) */
+.grid-block { display: grid; gap: 0.5rem; }
+.grid-toolbar { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
+.grid-toolbar .muted { margin-right: auto; font-size: 0.84rem; }
+.search-box { display: flex; align-items: center; gap: 0.4rem; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 0 0.65rem; color: var(--muted); transition: border-color 160ms var(--ease-out); }
+.search-box:focus-within { border-color: var(--sky); }
+.search-box input { background: transparent; border: none; outline: none; padding: 0.42rem 0; width: 13rem; color: var(--text); }
+.live-grid { height: calc(100vh - 400px); min-height: 280px; }
+.alerts-grid { height: calc(100vh - 372px); min-height: 260px; }
+.grid-shell .ag-row.row-high-plus { background-color: rgba(255, 93, 108, 0.1); }
+.grid-shell .ag-row.row-new { animation: row-in 180ms var(--ease-out); }
+.grid-shell .ag-row.row-pulse { animation: row-in 180ms var(--ease-out), row-pulse 1400ms var(--ease-out); }
+.grid-shell .ag-cell a { color: var(--sky); }
+.meter { display: inline-flex; align-items: center; gap: 0.5rem; width: 100%; }
+.meter-track { flex: 1; height: 6px; border-radius: 999px; background: rgba(148, 163, 192, 0.18); overflow: hidden; }
+.meter-fill { display: block; height: 100%; border-radius: 999px; transition: width 240ms var(--ease-out); }
+.meter-num { font-size: 0.78rem; color: var(--muted); min-width: 2.2rem; text-align: right; }
+.list-panel:has(.alerts-grid) { overflow: hidden; }
+.split { grid-template-columns: minmax(300px, 340px) minmax(0, 1fr); }
+@media (prefers-reduced-motion: reduce) { .grid-shell .ag-row.row-new, .grid-shell .ag-row.row-pulse { animation: none; } }
+
+/* grid polish: toolbars, badges inside cells, and the narrow triage panel */
+.list-panel button.btn { width: auto; text-align: center; }
+.list-panel li button.btn { width: 100%; text-align: left; }
+.grid-toolbar .btn { display: inline-flex; align-items: center; gap: 0.4rem; white-space: nowrap; padding: 0.35rem 0.75rem; }
+.grid-toolbar .search-box { flex: 1 1 8rem; min-width: 0; }
+.grid-toolbar .search-box input { width: 100%; min-width: 0; }
+.grid-shell .ag-cell { display: flex; align-items: center; }
+.grid-shell .ag-cell .badge { padding: 0 0.55rem; font-size: 0.72rem; line-height: 1.55; }
+.grid-shell .ag-cell a { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

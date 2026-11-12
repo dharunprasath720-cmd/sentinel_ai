@@ -76,7 +76,7 @@ describe("Investigation workspace", () => {
   it("lists alerts and opens a case from the selected ones", async () => {
     const client = setup();
     await screen.findByText("T-1");
-    await userEvent.click(screen.getByRole("checkbox", { name: /T-1/ }));
+    await userEvent.click(within((await screen.findByText("T-1")).closest('[role="row"]') as HTMLElement).getByRole("checkbox"));
     await userEvent.click(screen.getByRole("button", { name: /open case/i }));
     await waitFor(() => expect(client.calls.find((c) => c.path === "/cases" && c.method === "POST")?.body).toEqual({ alert_ids: [1] }));
   });

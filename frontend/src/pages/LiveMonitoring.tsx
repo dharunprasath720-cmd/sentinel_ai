@@ -12,11 +12,9 @@ import { EmptyState, ErrorState, Spinner } from "../components/states";
 import { fmtInt, fmtMoney, fmtMs, fmtTime } from "../format";
 import { useLiveStream, type StreamState } from "../live/useLiveStream";
 import { SOURCE_LABELS, useSource } from "../source";
+import { LiveEventsGrid, type LiveRow } from "./live/LiveEventsGrid";
 
-interface Row {
-  id: string; ts: string; account: string; amount: number; level: Level | null;
-  action: Action | null; cluster: string | null; fresh: boolean; // fresh = arrived over the live stream
-}
+type Row = LiveRow;
 
 const STATE_TEXT: Record<StreamState, string> = {
   connecting: "Connecting", open: "Connected", reconnecting: "Reconnecting", closed: "Disconnected",
@@ -89,11 +87,11 @@ export function LiveMonitoring({ streamFetch }: { streamFetch?: typeof fetch }) 
     const fromLive: Row[] = stream.events
       .filter((e) => (e.source ?? "synthetic") === source)
       .map((e) => ({ id: e.external_id, ts: e.ts, account: e.account_id, amount: e.amount,
-                     level: e.risk_level, action: e.recommended_action, cluster: e.cluster_id, fresh: true }));
+                     level: e.risk_level, action: e.recommended_action, cluster: e.cluster_id, fresh: true, score: e.risk_score }));
     const seen = new Set(fromLive.map((r) => r.id));
     const fromDb: Row[] = (initial.data ?? []).filter((t) => !seen.has(t.external_id))
       .map((t) => ({ id: t.external_id, ts: t.ts, account: t.account_id, amount: t.amount,
-                     level: t.risk_level, action: t.action, cluster: t.cluster_id, fresh: false }));
+                     level: t.risk_level, action: t.action, cluster: t.cluster_id, fresh: false, score: t.risk_score }));
     return [...fromLive, ...fromDb].slice(0, 200);
   }, [stream.events, initial.data, source]);
 
@@ -147,21 +145,7 @@ export function LiveMonitoring({ streamFetch }: { streamFetch?: typeof fetch }) 
         <h2>Scored events</h2>
         {initial.isPending ? <Spinner /> : initial.isError ? <ErrorState error={initial.error} onRetry={() => initial.refetch()} /> :
           rows.length === 0 ? <EmptyState title="No events yet for this data source" hint="Start the replay simulator to stream scored events." /> : (
-            <div className="table-scroll"><table>
-              <thead><tr><th>Transaction</th><th>Time</th><th>Account</th><th>Amount</th><th>Level</th><th>Action</th><th>Cluster</th></tr></thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id} className={`clickable${r.level && HIGH_PLUS.includes(r.level) ? " row-high-plus" : ""}${r.fresh ? " row-new" : ""}${r.fresh && r.level && HIGH_PLUS.includes(r.level) ? " row-pulse" : ""}`}
-                      onClick={(e) => { if (!(e.target as HTMLElement).closest("a")) navigate(`/investigation/${encodeURIComponent(r.id)}`); }}>
-                    <td><Link to={`/investigation/${encodeURIComponent(r.id)}`}>{r.id}</Link></td>
-                    <td>{fmtTime(r.ts)}</td><td>{r.account}</td><td>{fmtMoney(r.amount)}</td>
-                    <td><RiskBadge level={r.level} /></td>
-                    <td>{r.action === "HOLD_RECOMMENDED" ? "Hold recommended" : (r.action ?? "—")}</td>
-                    <td>{r.cluster ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table></div>
+            <LiveEventsGrid rows={rows} />
           )}
       </section>
     </div>

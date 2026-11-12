@@ -151,6 +151,12 @@ Checked against the "Requirements" text the user pasted from the Devpost page (t
 - **Git history scanned:** no API keys, passwords, tokens or tunnel URLs in any commit. Every commit carries the author's personal email, which becomes public with the repo.
 - **Not met at the time of writing:** no `LICENSE` file; the repository has no remote and is not public; the video is not on YouTube. The submission deadline time and time zone were not in the pasted text.
 
+## AG Grid (branch ag-grid)
+
+AG Grid Community 36.2.0 (MIT) now drives two tables; nothing from the paid Enterprise tier is used. **Live Monitoring:** rows are keyed by transaction id, so new events arrive as updates while the analyst's sort, column filters and quick search stay applied; in-cell risk bars, severity badges, highlighted HIGH+ rows, an "X of Y events" counter and a CSV export of the filtered view. **Investigation:** the alert list became a triage grid with severity sort, filter, search, multi-row selection and "Open case from N selected"; a CSV export of the selection.
+
+**Checked in a real browser on a fresh scratch demo:** replaying the ring into the grid, a quick search for `CL_` held while the counter went from "8 of 115" to "17 of 155" as events kept streaming in; three alerts were ticked, the button read "Open case from 3 selected", and the case was created with 3 alerts; 124 unit tests pass (3 new). **Not verified:** the sponsor's judging criteria are unpublished (the Devpost page is behind a bot check), so whether this is a strong entry for the AG Grid prize is a guess; column filter menus and column resizing were seen but not exercised in an automated check; the production bundle grew from about 1 MB to 2.2 MB (all Community modules are registered; registering only the ones used would shrink it). **The demo-video recorder (`demo-video/record.mjs`) targets the old HTML table and must be updated before it can record the new look.** Test timeouts were raised to 15 s because AG Grid renders slowly in jsdom and two tests timed out once under load.
+
 ## Known limitations — read before trusting or demoing
 1. **21% of fraud is missed** (33 of 154): takeover bursts that resemble legitimate bursts, and the first ring transactions before the shared-device pattern exists (point-in-time scoring cannot know it yet).
 2. **Legit-unusual purchases are MONITORed, not REVIEWed.** The demo story "flagged for review" needs a lower REVIEW threshold or is told as "flagged for monitoring".

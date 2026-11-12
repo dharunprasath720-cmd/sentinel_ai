@@ -9,6 +9,7 @@ import { PageHeader } from "../components/PageHeader";
 import { useSource } from "../source";
 import { RiskBadge } from "../components/RiskBadge";
 import { EmptyState, ErrorState, Spinner } from "../components/states";
+import { AlertsGrid } from "./investigation/AlertsGrid";
 import { CasePanel } from "./investigation/CasePanel";
 import { TransactionPanel } from "./investigation/TransactionPanel";
 
@@ -51,21 +52,10 @@ export function Investigation() {
             alerts.isPending ? <Spinner /> : alerts.isError ? <ErrorState error={alerts.error} onRetry={() => alerts.refetch()} /> :
               alerts.data.length === 0 ? <EmptyState title="No open alerts" /> : (
                 <>
-                  <ul>
-                    {alerts.data.map((a) => (
-                      <li key={a.id} className="row">
-                        {canAct(role) ? (
-                          <input type="checkbox" aria-label={`Select ${a.txn_external_id}`}
-                                 checked={selected.includes(a.id)} onChange={() => toggle(a.id)} />
-                        ) : null}
-                        <Link to={`/investigation/${encodeURIComponent(a.txn_external_id)}`}>{a.txn_external_id}</Link>
-                        <RiskBadge level={a.level} />
-                      </li>
-                    ))}
-                  </ul>
+                  <AlertsGrid alerts={alerts.data} selectable={canAct(role)} onSelectionChange={setSelected} />
                   {canAct(role) ? (
                     <button className="btn btn-primary" disabled={selected.length === 0 || open.isPending} onClick={() => open.mutate()}>
-                      Open case from selected
+                      {selected.length ? `Open case from ${selected.length} selected` : "Open case from selected"}
                     </button>
                   ) : null}
                 </>

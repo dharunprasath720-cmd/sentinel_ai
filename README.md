@@ -31,8 +31,8 @@ different sources is never blended.
 | Page | What you do there |
 |---|---|
 | **Overview** | Portfolio tiles, risk distribution (log or linear, click a level to filter), daily volume, model quality with its caveat |
-| **Live Monitoring** | Start a replay (optionally part-way through the stream), watch scored events arrive, latency and event-rate readouts, pause, jump to an investigation |
-| **Investigation** | Work alerts into cases, see risk factors and SHAP bars, add notes, approve an action, resolve, generate an AI report |
+| **Live Monitoring** | Start a replay (optionally part-way through the stream) and watch scored events stream into an [AG Grid](https://www.ag-grid.com/) table: sort, filter any column, quick search, in-cell risk bars, export the filtered view as CSV. Filters and sort stay applied while new events keep arriving |
+| **Investigation** | A triage grid (AG Grid) of open alerts: sort by severity, filter, search, tick several rows and open one case from the selection, export the selection as CSV. Then risk factors and SHAP bars, notes, approve an action, resolve, generate an AI report |
 | **Graph Explorer** | Flagged clusters and account neighbourhoods; click an account to expand it |
 | **AI Investigator** | Ask questions; answers show the evidence they cite |
 
