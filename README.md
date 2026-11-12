@@ -6,6 +6,8 @@ Claude-powered investigator answers questions, but only from evidence it actuall
 
 Built for the PayPal AI Hackathon on a four-day deadline, and exercised against the real PayPal Sandbox.
 
+**Live demo:** https://sentinel-ai-e8or.onrender.com/ (synthetic data; click the **ana** chip and sign in, the demo password is shown on the page). It runs on Render's free plan, so the first visit can take about a minute to wake up. The PayPal Sandbox data source holds one real payment that arrived by signed webhook; visitors cannot create new ones.
+
 > **Status: hackathon demo.** Synthetic data, SQLite, PayPal Sandbox only. See [What was and was not verified](#what-was-and-was-not-verified) before relying on any claim here.
 
 ## What it does
