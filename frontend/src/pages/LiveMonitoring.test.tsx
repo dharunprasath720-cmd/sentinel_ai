@@ -199,7 +199,7 @@ describe("LiveMonitoring page", () => {
     await userEvent.type(screen.getByRole("searchbox", { name: /search events/i }), "OLD-HIGH");
     await waitFor(() => expect(screen.queryByText("OLD-LOW")).toBeNull());
     expect(screen.getByText("OLD-HIGH")).toBeInTheDocument();
-    expect(screen.getByText(/showing 1 of 2 events/i)).toBeInTheDocument();
+    expect(await screen.findByText(/showing 1 of 2 events/i)).toBeInTheDocument();
   });
 
   it("a filter stays applied while new events keep streaming in", async () => {
@@ -211,7 +211,7 @@ describe("LiveMonitoring page", () => {
     act(() => { s.push(live("KEEP-1")); s.push(live("DROP-2")); });
     expect(await screen.findByText("KEEP-1")).toBeInTheDocument();
     expect(screen.queryByText("DROP-2")).toBeNull();
-    expect(screen.getByText(/showing 1 of 4 events/i)).toBeInTheDocument();
+    expect(await screen.findByText(/showing 1 of 4 events/i)).toBeInTheDocument();
   });
 
   it("exports the filtered view as a CSV file", async () => {

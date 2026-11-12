@@ -1,6 +1,9 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach } from "vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
+
+// findBy... gives up after 1 s by default; the first AG Grid render in a busy run can take longer than that
+configure({ asyncUtilTimeout: 5000 });
 
 afterEach(() => {
   cleanup();
