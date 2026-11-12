@@ -40,15 +40,13 @@ const context = await browser.newContext({
 // Captions and a visible cursor live in the page so they are part of the recorded video.
 await context.addInitScript(() => {
   const css = `
-    #__caption{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);max-width:72%;z-index:2147483647;
-      padding:10px 20px;border-radius:12px;background:rgba(6,10,22,.93);border:1px solid #6aa5ff;color:#f1f5ff;
-      font:600 22px/1.35 Georgia,'Times New Roman',serif;text-align:center;pointer-events:none;
-      box-shadow:0 10px 40px rgba(0,0,0,.5);transition:opacity .25s;opacity:0}
+    #__caption{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);max-width:78%;z-index:2147483647;
+      color:#fff;font:600 24px/1.35 Georgia,'Times New Roman',serif;text-align:center;pointer-events:none;
+      text-shadow:0 0 3px #000,0 0 6px #000,0 2px 10px #000,0 0 18px rgba(0,0,0,.9);transition:opacity .25s;opacity:0}
     #__caption.on{opacity:1}
-    #__cursor{position:fixed;width:22px;height:22px;margin:-4px 0 0 -4px;border-radius:50%;z-index:2147483646;
-      background:rgba(255,200,60,.85);border:2px solid #fff;pointer-events:none;transition:transform .08s;left:-40px;top:-40px;
-      box-shadow:0 0 0 2px rgba(0,0,0,.4)}
-    #__cursor.down{transform:scale(.7);background:rgba(255,90,90,.9)}`;
+    #__cursor{position:fixed;width:24px;height:24px;margin:0;z-index:2147483646;background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path d='M3 2l7.5 19 2.6-7.9L21 10.5z' fill='white' stroke='black' stroke-width='1.6' stroke-linejoin='round'/></svg>") no-repeat 0 0;
+      pointer-events:none;transition:transform .08s;transform-origin:3px 2px;left:-40px;top:-40px}
+    #__cursor.down{transform:scale(.85)}`;
   const build = () => {
     if (document.getElementById("__caption")) return;
     const st = document.createElement("style"); st.textContent = css; document.documentElement.appendChild(st);
@@ -104,8 +102,7 @@ const card = async (title, lines, ms) => {
 
 try {
   // ---------------------------------------------------------------- title
-  await card("SENTINEL AI", ["Payment-fraud intelligence you can audit",
-    "Captioned demo. Synthetic data, PayPal Sandbox. No narration."], 5000);
+  await card("SENTINEL AI", ["Payment-fraud intelligence you can audit"], 4000);
 
   // ---------------------------------------------------------------- sign in
   log("scene: sign in");
