@@ -279,12 +279,28 @@ try {
   await page.getByLabel("Data source").selectOption("paypal_sandbox");
   await click(page.locator(".nav a", { hasText: "Live Monitoring" }));
   const ppRow = page.locator(".live-grid .ag-row", { has: page.locator('a:text-matches("^PP-")') }).first();
-  const hasPayPal = await ppRow.waitFor({ timeout: 15000 }).then(() => true).catch(() => false);
+  const liveCapture = !!process.env.PP_CAPTURE_PY;
+  if (liveCapture) {
+    await say("Now a real PayPal Sandbox payment. The buyer has already approved it. The merchant captures it now.", 5500);
+    const cap = spawnSync(process.env.PP_CAPTURE_PY, [process.env.PP_CAPTURE_SCRIPT], { encoding: "utf8" });
+    log("capture:", (cap.stdout || "").trim() || (cap.stderr || "").trim().slice(0, 200));
+    await caption("PayPal sends a signed webhook. SENTINEL verifies it with PayPal before it scores the payment.");
+    let arrived = await fastForward("PayPal webhook arriving", 4.5, () => ppRow.waitFor({ timeout: FAST ? 60000 : 45000 }).then(() => true).catch(() => false));
+    if (!arrived) { // the live stream may not carry it: reload the page's recent events
+      await click(page.locator(".nav a", { hasText: "Overview" }));
+      await click(page.locator(".nav a", { hasText: "Live Monitoring" }));
+      arrived = await ppRow.waitFor({ timeout: 30000 }).then(() => true).catch(() => false);
+    }
+    if (!arrived) throw new Error("the live PayPal payment never arrived (webhook URL or tunnel problem)");
+    await page.waitForTimeout(dwell(1500));
+  } else {
+    await ppRow.waitFor({ timeout: 15000 }).catch(() => {});
+  }
+  const hasPayPal = await ppRow.isVisible().catch(() => false);
   if (hasPayPal) {
     await ppRow.scrollIntoViewIfNeeded({ timeout: 2000 }).catch(() => {});
-    const ppText = (await ppRow.innerText()).replace(/\s+/g, " ");
-    log("paypal row:", ppText);
-    await say("Data source: PayPal Sandbox. A real Sandbox payment, delivered by signed webhook and verified with PayPal before scoring (received 11 Nov 2026).", 7500);
+    log("paypal row:", (await ppRow.innerText()).replace(/\s+/g, " "));
+    await say(liveCapture ? "It arrived live: a real Sandbox payment, verified with PayPal's signature check, then scored." : "Data source: PayPal Sandbox. A real Sandbox payment, delivered by signed webhook and verified with PayPal before scoring.", 6500);
     await shot("15-paypal-live");
     await click(ppRow.locator("a").first());
     await page.getByRole("heading", { name: /^Transaction PP-/ }).waitFor({ timeout: 60000 });
