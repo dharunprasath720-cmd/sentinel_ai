@@ -9,6 +9,8 @@ edit the voice freely, but keep the numbers and the caveats together.
 
 **Repository:** https://github.com/dharunprasath720-cmd/sentinel_ai
 
+**Demo site:** https://sentinel-ai-e8or.onrender.com/ (click the **ana** chip, then Sign in; the shared demo password is shown on the page)
+
 **Demo video:** (paste your public YouTube link)
 
 ---
